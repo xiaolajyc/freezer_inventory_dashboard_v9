@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>家庭冷冻库存管理 V9</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>家庭冷冻库存管理 V11</title>
 <style>
-:root{--ink:#14241f;--muted:#63736d;--bg:#f4f8f6;--card:#fff;--accent:#147a58;--warn:#b56c00;--danger:#b92b36;--line:#dce7e1}*{box-sizing:border-box}body{margin:0;background:var(--bg);font:15px system-ui,-apple-system,"Microsoft YaHei",sans-serif;color:var(--ink)}header{padding:22px max(20px,calc((100% - 1120px)/2));background:#113d31;color:white;display:flex;align-items:center;justify-content:space-between;gap:16px}h1{font-size:20px;margin:0}.wrap{max-width:1120px;margin:auto;padding:20px;display:grid;grid-template-columns:200px 1fr;gap:20px}.nav,.card,dialog{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 14px #16392a0a}.nav{padding:9px;height:max-content}.nav button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:11px;border-radius:8px;color:var(--ink);font:inherit;cursor:pointer}.nav button.active,.nav button:hover{background:#e5f4ed;color:#07583c}.content{min-width:0}.view{display:none}.view.active{display:block}.grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:12px}.card{padding:16px}.metric{font-size:28px;font-weight:700;color:var(--accent)}.muted{color:var(--muted);font-size:13px}h2{margin:0 0 14px;font-size:20px}h3{margin:0 0 8px;font-size:16px}.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}.spread{justify-content:space-between}button,.button{appearance:none;border:0;border-radius:8px;background:var(--accent);color:#fff;padding:9px 13px;font:inherit;cursor:pointer;text-decoration:none}.secondary{background:#e8f1ed;color:#174333}.danger{background:var(--danger)}button:hover{filter:brightness(.95)}input,select,textarea{width:100%;padding:9px;border:1px solid #bfd1c8;border-radius:8px;font:inherit;background:#fff}label{font-weight:600;font-size:13px;display:block;margin-top:10px}.list{display:grid;gap:8px}.item{padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}.badge{display:inline-block;padding:3px 7px;border-radius:99px;background:#fff0d1;color:#875000;font-size:12px}.low{color:var(--danger);font-weight:600}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.table th{font-size:12px;color:var(--muted)}dialog{width:min(520px,calc(100% - 24px));padding:0}dialog::backdrop{background:#10282088}.dialog-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.dialog-body{padding:4px 18px 18px}.dialog-head button{background:none;color:var(--muted);font-size:22px;padding:0}.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.empty{padding:22px;text-align:center;color:var(--muted)}.notice{padding:10px 14px;background:#e5f4ed;border-radius:8px;color:#07583c;margin:10px 0}.hide{display:none}@media(max-width:720px){header{padding:16px 18px}.wrap{grid-template-columns:1fr;padding:12px}.nav{display:flex;overflow:auto;padding:6px}.nav button{white-space:nowrap;width:auto}.grid{grid-template-columns:repeat(2,1fr)}.table{font-size:13px}.table th:nth-child(4),.table td:nth-child(4){display:none}}
+:root{--ink:#14241f;--muted:#63736d;--bg:#f4f8f6;--card:#fff;--accent:#147a58;--warn:#b56c00;--danger:#b92b36;--line:#dce7e1}*{box-sizing:border-box}body{margin:0;background:var(--bg);font:15px system-ui,-apple-system,"Microsoft YaHei",sans-serif;color:var(--ink)}header{padding:22px max(20px,calc((100% - 1120px)/2));background:#113d31;color:white;display:flex;align-items:center;justify-content:space-between;gap:16px}h1{font-size:20px;margin:0}.wrap{max-width:1120px;margin:auto;padding:20px;display:grid;grid-template-columns:200px 1fr;gap:20px}.nav,.card,dialog{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 14px #16392a0a}.nav{padding:9px;height:max-content}.nav button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:11px;border-radius:8px;color:var(--ink);font:inherit;cursor:pointer}.nav button.active,.nav button:hover{background:#e5f4ed;color:#07583c}.content{min-width:0}.view{display:none}.view.active{display:block}.grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:12px}.category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:12px}.category-card{padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff}.category-name{font-weight:700;font-size:16px}.category-weight{font-size:24px;font-weight:700;margin-top:6px}.category-detail{margin-top:5px;color:var(--muted);font-size:12px}.card{padding:16px}.metric{font-size:28px;font-weight:700;color:var(--accent)}.muted{color:var(--muted);font-size:13px}h2{margin:0 0 14px;font-size:20px}h3{margin:0 0 8px;font-size:16px}.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}.spread{justify-content:space-between}button,.button{appearance:none;border:0;border-radius:8px;background:var(--accent);color:#fff;padding:9px 13px;font:inherit;cursor:pointer;text-decoration:none}.secondary{background:#e8f1ed;color:#174333}.danger{background:var(--danger)}button:hover{filter:brightness(.95)}input,select,textarea{width:100%;padding:9px;border:1px solid #bfd1c8;border-radius:8px;font:inherit;background:#fff}label{font-weight:600;font-size:13px;display:block;margin-top:10px}.list{display:grid;gap:8px}.item{padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}.badge{display:inline-block;padding:3px 7px;border-radius:99px;background:#fff0d1;color:#875000;font-size:12px}.low{color:var(--danger);font-weight:600}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.table th{font-size:12px;color:var(--muted)}dialog{width:min(520px,calc(100% - 24px));padding:0}dialog::backdrop{background:#10282088}.dialog-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.dialog-body{padding:4px 18px 18px}.dialog-head button{background:none;color:var(--muted);font-size:22px;padding:0}.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.empty{padding:22px;text-align:center;color:var(--muted)}.notice{padding:10px 14px;background:#e5f4ed;border-radius:8px;color:#07583c;margin:10px 0}.hide{display:none}@media(max-width:720px){header{padding:16px 18px}.wrap{grid-template-columns:1fr;padding:12px}.nav{display:flex;overflow:auto;padding:6px}.nav button{white-space:nowrap;width:auto}.grid{grid-template-columns:repeat(2,1fr)}.table{font-size:13px}.table th:nth-child(4),.table td:nth-child(4){display:none}}
 </style></head><body>
 <header><h1>🧊 家庭冷冻库存管理</h1><div class="row"><button class="secondary" id="exportBtn">备份 JSON</button><label class="button secondary" for="restoreFile">恢复备份</label><input id="restoreFile" type="file" accept="application/json" class="hide"></div></header>
 <main class="wrap"><nav class="nav" id="nav"><button data-view="dashboard" class="active">总览</button><button data-view="inventory">库存</button><button data-view="products">商品 / 规格</button><button data-view="freezers">冰柜 / 区域</button><button data-view="history">操作流水</button><button data-view="inspection">长期检查</button><button data-view="settings">设置</button></nav>
@@ -14,11 +14,11 @@
 <div id="inspection" class="view"><div class="row spread"><h2>长期冷冻检查</h2><span class="muted">按 批次 跟踪检查周期</span></div><div id="inspectionList"></div></div>
 <div id="settings" class="view"><div class="grid"><div class="card"><h3>长期冷冻检查</h3><p>食品入库满 <b>1 年</b> 后进入长期冷冻检查提醒。</p><p class="muted">检查内容：包装、冻烧/氧化、异味转移、结霜及处理建议。</p></div><div class="card"><h3>批次 编号</h3><label>Prefix<input id="batchPrefix" value="BAT"></label><button id="saveSettings" style="margin-top:10px">保存设置</button></div></div></div>
 </section></main>
-<dialog id="modal"><div class="dialog-head"><h2 id="modalTitle"></h2><button id="closeModal" aria-label="关闭">×</button></div><form id="modalForm" class="dialog-body"></form></dialog>
+<dialog id="modal"><div class="dialog-head"><h2 id="modalTitle"></h2><button type="button" id="closeModal" class="js-close-modal" aria-label="关闭">×</button></div><form id="modalForm" class="dialog-body"></form></dialog>
 <dialog id="deleteConfirm">
   <div class="dialog-head">
     <h2>确认删除商品</h2>
-    <button type="button" id="deleteConfirmClose" aria-label="关闭">×</button>
+    <button type="button" id="deleteConfirmClose" class="js-close-delete" aria-label="关闭">×</button>
   </div>
   <div class="dialog-body">
     <div id="deleteConfirmText"></div>
@@ -135,11 +135,46 @@ function renderDashboard(){
   const rows=stockRows(), opened=rows.filter(s=>s.openedGrams>0);
   const low=state.规格s.filter(v=>v.active!==false&&grams(v.id)<v.minStock);
   const due=inspectionDue();
+  const totalGrams=rows.reduce((n,s)=>{
+    const b=batch(s.batchId),v=b?规格(b.规格Id):null;
+    return n+s.sealedPacks*(Number(v?.packWeight)||0)+s.openedGrams;
+  },0);
+
   $("#metrics").innerHTML=[
-    ["当前库存",rows.reduce((n,s)=>{const v=规格(batch(s.batchId).规格Id);return n+s.sealedPacks*v.packWeight+s.openedGrams},0).toLocaleString()+" g"],
+    ["当前库存",totalGrams.toLocaleString()+" g"],
     ["规格",state.规格s.filter(v=>v.active!==false).length],
     ["开封库存",opened.length],["低库存",low.length]
   ].map(x=>`<div class="card"><div class="metric">${esc(x[1])}</div><div class="muted">${esc(x[0])}</div></div>`).join("");
+
+  // 按商品分类汇总当前库存重量，例如：猪类、鸡类、主食等。
+  const categoryMap={};
+  rows.forEach(s=>{
+    const b=batch(s.batchId),v=b?规格(b.规格Id):null,p=v?product(v.productId):null;
+    if(!p)return;
+    const category=(p.category||"未分类").trim()||"未分类";
+    const gramsNow=s.sealedPacks*(Number(v?.packWeight)||0)+Number(s.openedGrams)||0;
+    if(!categoryMap[category]) categoryMap[category]={grams:0,items:0};
+    categoryMap[category].grams+=gramsNow;
+    categoryMap[category].items+=1;
+  });
+
+  let categoryBox=$("#categorySummary");
+  if(!categoryBox){
+    categoryBox=document.createElement("div");
+    categoryBox.id="categorySummary";
+    categoryBox.className="card";
+    $("#metrics").after(categoryBox);
+  }
+  const cats=Object.entries(categoryMap).sort((a,b)=>b[1].grams-a[1].grams);
+  categoryBox.innerHTML=`
+    <h3>按商品分类统计当前库存</h3>
+    ${cats.length?`<div class="category-grid">${cats.map(([name,x])=>`
+      <div class="category-card">
+        <div class="category-name">${esc(name)}</div>
+        <div class="category-weight">${x.grams.toLocaleString()} g</div>
+        <div class="category-detail">${x.items} 个库存位置 / 批次</div>
+      </div>`).join("")}</div>`:`<div class="empty">暂无库存</div>`}
+  `;
   $("#priority").innerHTML=opened.length?opened.sort((a,b)=>String(a.openedAt).localeCompare(String(b.openedAt))).slice(0,6).map(s=>cardStock(s)).join(""):"<div class='empty'>暂无开封库存</div>";
   $("#lowStock").innerHTML=low.length?low.map(v=>`<div class="item"><b class="low">⚠ ${esc(规格Label(v))}</b><br><span class="muted">当前 ${grams(v.id)}g · 最低 ${v.minStock}g</span></div>`).join(""):"<div class='empty'>没有低库存 规格</div>";
   $("#inspectionNotice")?.remove();
@@ -246,7 +281,7 @@ function open(kind,id=null,productId=null){
       <label>分类（可选）<input name="category" value="${esc(p?.category||"")}" placeholder="例如：肉类"></label>
       <label>标签（可选）<input name="tags" value="${esc((p?.tags||[]).join(","))}" placeholder="例如：常用,晚餐"></label>
       <label>备注（可选）<textarea name="notes" rows="3">${esc(p?.notes||"")}</textarea>
-      <div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>保存</button></div>
+      <div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>保存</button></div>
     `,kind,id);return;
   }
   if(kind==="规格"||kind==="edit规格"){
@@ -259,7 +294,7 @@ function open(kind,id=null,productId=null){
       <label>最低库存（g）<input name="min" type="number" min="0" step="1" value="${v?.minStock||0}"></label>
       <label>标签（可选）<input name="tags" value="${esc((v?.tags||[]).join(","))}"></label>
       <label>备注（可选）<textarea name="notes" rows="3">${esc(v?.notes||"")}</textarea>
-      <div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>保存</button></div>
+      <div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>保存</button></div>
     `,kind,id);return;
   }
   if(kind==="freezer"||kind==="editFreezer"){
@@ -268,7 +303,7 @@ function open(kind,id=null,productId=null){
       <label>冰柜名称<input name="name" value="${esc(f?.name||"")}" required></label>
       <label>备注（可选）<textarea name="notes">${esc(f?.notes||"")}</textarea></label>
       <label>状态<select name="active"><option value="true" ${f?.active!==false?"selected":""}>启用</option><option value="false" ${f?.active===false?"selected":""}>停用</option></select></label>
-      <div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>保存</button></div>
+      <div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>保存</button></div>
     `,kind,id);return;
   }
   if(kind==="zone"||kind==="editZone"){
@@ -277,7 +312,7 @@ function open(kind,id=null,productId=null){
       <label>区域名称<input name="name" value="${esc(z?.name||"")}" required></label>
       <label>父级区域<select name="parent"><option value="">无（顶层）</option>${state.zones.filter(x=>x.freezerId===z.freezerId&&x.id!==z.id).map(x=>`<option value="${x.id}" ${x.id===z.parentId?"selected":""}>${esc(x.name)}</option>`).join("")}</select></label>
       <label>状态<select name="active"><option value="true" ${z?.active!==false?"selected":""}>启用</option><option value="false" ${z?.active===false?"selected":""}>停用</option></select></label>
-      <div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>保存</button></div>
+      <div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>保存</button></div>
     `,"editZone",id);return;
   }
   if(kind==="receive"){
@@ -289,7 +324,7 @@ function open(kind,id=null,productId=null){
       <div class="muted">再次录入同一批次编号时，系统会继续增加该批次库存。</div>
       <label>入库日期<input name="received" type="date" value="${today()}" required></label>
       <label>备注（可选）<input name="note"></label>
-      <div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>确认入库</button></div>
+      <div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>确认入库</button></div>
     `,"receive");return;
   }
   if(kind==="use"){
@@ -299,7 +334,7 @@ function open(kind,id=null,productId=null){
       <label>数量<input name="amount" type="number" min="0.01" step="0.01" value="100" required></label>
       <label>原因/备注（可选）<input name="note" placeholder="晚餐使用"></label>
       <div class="notice">系统推荐顺序：开封库存 → 最早入库批次（FIFO）。</div>
-      <div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>确认取用</button></div>
+      <div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>确认取用</button></div>
     `,"use",id);return;
   }
   if(kind==="transfer"){
@@ -309,7 +344,7 @@ function open(kind,id=null,productId=null){
       <label>开封重量（g）<input name="grams" type="number" min="0" value="0"></label>
       <label>目标区域<select name="zone" required>${zoneOptions()}</select></label>
       <label>原因/备注（可选）<input name="note"></label>
-      <div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>确认转移</button></div>
+      <div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>确认转移</button></div>
     `,"transfer",id);return;
   }
   if(kind==="adjust"){
@@ -318,7 +353,7 @@ function open(kind,id=null,productId=null){
       <label>盘点后的完整包数<input name="packs" type="number" min="0" required></label>
       <label>盘点后的开封克数<input name="grams" type="number" min="0" required value="0"></label>
       <label>原因/备注（可选）<input name="note"></label>
-      <div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>保存盘点</button></div>
+      <div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>保存盘点</button></div>
     `,"adjust",id);return;
   }
   if(kind==="check"){
@@ -329,7 +364,7 @@ function open(kind,id=null,productId=null){
       <label>冻伤 / 氧化 / 异味<select name="condition"><option>未发现明显问题</option><option>发现问题</option></select></label>
       <label>备注<textarea name="note" rows="3"></textarea></label>
       <input type="hidden" name="batchId" value="${esc(id)}">
-      <div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>保存检查</button></div>
+      <div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>保存检查</button></div>
     `,"check",id);return;
   }
 }
@@ -490,8 +525,7 @@ function deleteProduct(id0){
 }
 
 function closeDeleteConfirm(){
-  const dlg=$("#deleteConfirm");
-  try{dlg.close()}catch(e){dlg.removeAttribute("open")}
+  safeCloseDialog("#deleteConfirm");
 }
 function delete规格(id0){
   const v=规格(id0);if(!v)return;
@@ -518,9 +552,67 @@ $("#deleteConfirm")?.addEventListener("click",e=>{
   if(e.target===e.currentTarget)closeDeleteConfirm();
 });
 
+
+// 弹窗关闭：全部采用独立事件，不依赖 data-action。
+function safeCloseDialog(id){
+  const d=$(id);
+  if(!d)return;
+  try{
+    if(d.open)d.close();
+    else d.removeAttribute("open");
+  }catch(e){
+    d.removeAttribute("open");
+  }
+}
+
+$("#closeModal")?.addEventListener("click",e=>{
+  e.preventDefault();
+  e.stopPropagation();
+  safeCloseDialog("#modal");
+});
+
+$("#modalForm")?.addEventListener("click",e=>{
+  const b=e.target.closest(".js-cancel-modal");
+  if(!b)return;
+  e.preventDefault();
+  e.stopPropagation();
+  safeCloseDialog("#modal");
+});
+
+$("#deleteCancel")?.addEventListener("click",e=>{
+  e.preventDefault();
+  e.stopPropagation();
+  safeCloseDialog("#deleteConfirm");
+});
+
+$("#deleteConfirmClose")?.addEventListener("click",e=>{
+  e.preventDefault();
+  e.stopPropagation();
+  safeCloseDialog("#deleteConfirm");
+});
+
+// 点击两个弹窗的遮罩区域即可关闭。
+$("#modal")?.addEventListener("click",e=>{
+  if(e.target===e.currentTarget)safeCloseDialog("#modal");
+});
+$("#deleteConfirm")?.addEventListener("click",e=>{
+  if(e.target===e.currentTarget)safeCloseDialog("#deleteConfirm");
+});
+
+// ESC 统一关闭当前弹窗。
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape")return;
+  if($("#deleteConfirm")?.open)safeCloseDialog("#deleteConfirm");
+  else if($("#modal")?.open)safeCloseDialog("#modal");
+});
+
 document.addEventListener("click",e=>{
   const b=e.target.closest("button");
   if(!b)return;
+  if(b.classList.contains("js-close-modal") ||
+     b.classList.contains("js-cancel-modal") ||
+     b.classList.contains("js-close-delete") ||
+     b.id==="deleteCancel") return;
 
   if(b.dataset.view){showView(b.dataset.view);return;}
   if(b.dataset.open){open(b.dataset.open);return;}
@@ -544,7 +636,7 @@ document.addEventListener("click",e=>{
   if(a==="editFreezer"){open("editFreezer",id);return;}
   if(a==="editZone"){open("editZone",id);return;}
   if(a==="addZone"){
-    modal("新增 Zone",`<input type="hidden" name="freezerId" value="${esc(id)}"><label>区域名称<input name="name" required placeholder="例如：抽屉 4"></label><label>父级<select name="parent"><option value="">无（顶层）</option>${state.zones.filter(z=>z.freezerId===id).map(z=>`<option value="${z.id}">${esc(z.name)}</option>`).join("")}</select></label><div class="actions"><button type="button" class="secondary" id="cancel">取消</button><button>保存</button></div>`,"newZone");
+    modal("新增 Zone",`<input type="hidden" name="freezerId" value="${esc(id)}"><label>区域名称<input name="name" required placeholder="例如：抽屉 4"></label><label>父级<select name="parent"><option value="">无（顶层）</option>${state.zones.filter(z=>z.freezerId===id).map(z=>`<option value="${z.id}">${esc(z.name)}</option>`).join("")}</select></label><div class="actions"><button type="button" class="secondary js-cancel-modal">取消</button><button>保存</button></div>`,"newZone");
     return;
   }
   if(a==="deleteZone"){deleteZone(id);return;}
@@ -552,7 +644,6 @@ document.addEventListener("click",e=>{
   if(a==="downFreezer"){reorder(state.freezers,id,1);return;}
   if(a==="upZone"){const z=zone(id);reorder(state.zones.filter(x=>x.freezerId===z.freezerId),id,-1);return;}
   if(a==="downZone"){const z=zone(id);reorder(state.zones.filter(x=>x.freezerId===z.freezerId),id,1);return;}
-  if(b.id==="closeModal"||b.id==="cancel"){closeModal();return;}
 });
 $("#modalForm").addEventListener("submit",submit);
 $("#search").addEventListener("input",renderInventory);
