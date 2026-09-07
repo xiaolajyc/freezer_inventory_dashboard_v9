@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>家庭冷冻库存管理 V20</title>
+<title>家庭冷冻库存管理 V25</title>
 <style>
 :root{--bg:#f4f7f5;--card:#fff;--ink:#17231f;--muted:#68756f;--line:#dce5e0;--green:#147a58;--red:#b62f3a;--amber:#a96500}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
@@ -22,6 +22,8 @@ dialog{width:min(700px,calc(100% - 18px));border:1px solid var(--line);border-ra
 .dialog-body{padding:4px 15px 15px;max-height:80vh;overflow:auto}.form2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.full{grid-column:1/-1}
 .history-mobile{display:none}.group-card{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff}.group-sub{padding:9px;border-top:1px solid var(--line);margin-top:9px}.ocr-help{padding:12px;border:1px dashed #b9ccc3;border-radius:10px;text-align:center}
 @media(max-width:760px){header{padding:12px}.wrap{grid-template-columns:1fr;padding:9px}.nav{display:flex;overflow:auto}.nav button{width:auto;white-space:nowrap}.grid{grid-template-columns:repeat(2,1fr)}.history-desktop{display:none}.history-mobile{display:block}.form2{grid-template-columns:1fr}.full{grid-column:auto}}
+
+#clearAllBtn,#resetBtn{min-width:150px} #clearAllBtn:active,#resetBtn:active{transform:scale(.98)}
 </style>
 </head>
 <body>
@@ -90,7 +92,7 @@ dialog{width:min(700px,calc(100% - 18px));border:1px solid var(--line);border-ra
 
 <section id="settings" class="view">
 <div class="card"><h3>计量方式</h3><p class="muted">重量型：按 g 保存，可继续使用“整包 + 开封克数”。数量型：按盒、包、块、袋、瓶等保存，允许 0.5、1.5 等小数。部分取用后自动进入“已开封 / 优先使用”。</p></div>
-<div class="card" style="margin-top:12px"><h3>恢复示例数据</h3><button class="danger" id="resetBtn">恢复</button></div>
+<div class="card" style="margin-top:12px"><h3>数据管理</h3><div class="actions" style="flex-wrap:wrap"><button class="danger" id="clearAllBtn" type="button">清除所有数据</button><button class="secondary" id="resetBtn" type="button">恢复示例数据</button><button class="danger" id="clearStockBtn" type="button">一键清空库存</button></div><div class="muted" style="margin-top:8px">清除所有数据、恢复示例数据都需要两次确认。</div></div>
 </section>
 </main>
 </div>
@@ -133,7 +135,7 @@ function demo(){
 }
 var state=null;
 try{state=JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){state=null}
-if(!state||state.version!==15)state=demo();
+if(!state||!Array.isArray(state.products)||!Array.isArray(state.variants)||!Array.isArray(state.freezers)||!Array.isArray(state.zones)||!Array.isArray(state.batches)||!Array.isArray(state.stock)){state=demo();}
 
 function save(){localStorage.setItem(KEY,JSON.stringify(state))}
 function product(id){return state.products.find(function(x){return x.id===id})}
@@ -146,23 +148,96 @@ function findMonthlyBatch(variantId,date){
 }
 function zone(id){return state.zones.find(function(x){return x.id===id})}
 function freezer(id){return state.freezers.find(function(x){return x.id===id})}
-function stockRows(){return state.stock.filter(function(s){return num(s.sealedQty)>0||num(s.openedQty)>0})}
-function opened(s){return num(s.openedQty)>1e-9}
+function stockRows(){return state.stock.filter(function(s){var b=batch(s.batchId),v=b&&variant(b.variantId);return v&&((v.mode==="weight"?bagWeights(s,v).length:num(s.sealedQty)+num(s.openedQty))>1e-9)})}
+function opened(s){return num(s.openedQty)>1e-9||s.openedAt!=null}
 function vlabel(v){return v?(product(v.productId)?.name||"未知商品")+" · "+v.name:"—"}
 function loc(zid){var z=zone(zid);return z?(freezer(z.freezerId)?.name||"未知冰柜")+" / "+z.name:"—"}
-function total(vid){var v=variant(vid);if(!v)return 0;return state.stock.reduce(function(sum,s){var b=batch(s.batchId);if(!b||b.variantId!==vid)return sum;return sum+(v.mode==="weight"?num(s.sealedQty)*num(v.packWeight)+num(s.openedQty):num(s.sealedQty)+num(s.openedQty))},0)}
+function parseWeightList(raw){
+ var text=String(raw==null?"":raw).trim();
+ if(!text)return [];
+ text=text.replace(/×/g,"*").replace(/＊/g,"*").replace(/，/g,",").replace(/[；;]/g,",");
+ var out=[];
+ text.split(/[,\\n]+/).map(function(x){return x.trim()}).filter(Boolean).forEach(function(token){
+  var m=token.match(/^([0-9]+(?:\.[0-9]+)?)\s*(?:\*|x|X)\s*([0-9]+(?:\.[0-9]+)?)$/);
+  if(m){
+   var w=Number(m[1]),c=Number(m[2]);
+   if(!(w>0)||!(c>0)||!Number.isInteger(c))throw Error("重量格式错误："+token+"；例如 1000*4");
+   for(var i=0;i<c;i++)out.push(w);
+  }else{
+   var w2=Number(token);
+   if(!(w2>0))throw Error("无法识别重量："+token);
+   out.push(w2);
+  }
+ });
+ return out;
+}
+
+function bagItems(s,v){
+ if(!s||!v||v.mode!=="weight")return [];
+ if(Array.isArray(s.bagItems))return s.bagItems.map(function(x){return typeof x==="number"?{w:num(x),opened:false}:{w:num(x.w),opened:!!x.opened}}).filter(function(x){return x.w>0});
+ var a=(s.bagWeights||[]).map(num).filter(function(x){return x>0}).map(function(w){return {w:w,opened:false}});
+ if(s.openedAt!=null&&a.length&&num(s.openedQty)>0)a[a.length-1]={w:num(s.openedQty),opened:true};
+ return a;
+}
+function saveBagItems(s,a){
+ s.bagItems=(a||[]).map(function(x){return {w:num(x.w),opened:!!x.opened}}).filter(function(x){return x.w>0});
+ s.bagWeights=s.bagItems.map(function(x){return x.w});
+ s.sealedQty=s.bagItems.filter(function(x){return !x.opened}).length;
+ var o=s.bagItems.find(function(x){return x.opened});s.openedQty=o?o.w:0;s.openedAt=o?now():null;
+}
+function bagWeights(s,v){return bagItems(s,v).map(function(x){return x.w});}
+function total(vid){
+ var v=variant(vid);if(!v)return 0;
+ return state.stock.reduce(function(sum,s){var b=batch(s.batchId);if(!b||b.variantId!==vid)return sum;
+  return sum+(v.mode==="weight"?bagItems(s,v).reduce(function(a,x){return a+x.w},0):num(s.sealedQty)+num(s.openedQty));},0);
+}
 function qtyText(s,v){
  if(!s||!v)return "";
  if(v.mode==="weight"){
-  var sealed=num(s.sealedQty),openedQty=num(s.openedQty);
-  return fmt(sealed)+" 包"+(openedQty>0?" + "+fmt(openedQty)+" g 开封":"");
+  var a=bagItems(s,v),t=a.reduce(function(x,y){return x+y.w},0),u=a.filter(function(x){return x.opened}),c=a.filter(function(x){return !x.opened}),p=[];
+  if(c.length)p.push(c.length+" 袋");if(u.length)p.push(u.map(function(x){return fmt(x.w)+" g 开封"}).join(" + "));
+  return (p.join(" + ")||"0 袋")+" · 总计 "+fmt(t)+" g";
  }
- var total=num(s.sealedQty)+num(s.openedQty);
- return fmt(total)+" "+(v.unit||"件")+(num(s.openedQty)>0?"（"+fmt(num(s.openedQty))+" "+(v.unit||"件")+" 开封）":"");
+ var q=num(s.sealedQty)+num(s.openedQty);return fmt(q)+" "+(v.unit||"件")+(num(s.openedQty)>0?"（"+fmt(s.openedQty)+" "+(v.unit||"件")+" 开封）":"");
 }
-
+function opened(s){return Array.isArray(s.bagItems)?s.bagItems.some(function(x){return x.opened&&x.w>0}):num(s.openedQty)>0||s.openedAt!=null;}
+function normalizeVariableWeightStocks(){
+ (state.stock||[]).forEach(function(s){var b=batch(s.batchId),v=b&&variant(b.variantId);if(v&&v.mode==="weight"){var a=bagItems(s,v);s.bagItems=a;s.bagWeights=a.map(function(x){return x.w});s.sealedQty=a.filter(function(x){return !x.opened}).length;var o=a.find(function(x){return x.opened});s.openedQty=o?o.w:0;}});
+}
+function variantOptions(){
+ var vs=state.variants.filter(function(v){return v.active!==false});
+ return vs.length?vs.map(function(v){return '<option value="'+esc(v.id)+'">'+esc(vlabel(v))+'</option>'}).join(""):'<option value="">暂无规格，请先添加</option>';
+}
+function zoneOptions(){
+ var zs=state.zones.filter(function(z){return z.active!==false});
+ return zs.length?zs.map(function(z){return '<option value="'+esc(z.id)+'">'+esc(loc(z.id))+'</option>'}).join(""):'<option value="">暂无区域，请先添加</option>';
+}
+function stockOptions(){
+ var rows=stockRows().slice().sort(function(a,b){
+  var ao=opened(a),bo=opened(b);
+  if(ao!==bo)return bo-ao;
+  return String(batch(a.batchId)?.received||"").localeCompare(String(batch(b.batchId)?.received||""));
+ });
+ return rows.length?rows.map(function(s){
+  var b=batch(s.batchId),v=b&&variant(b.variantId);
+  return '<option value="'+esc(s.id)+'">'+esc(vlabel(v))+' · 批次 '+esc(monthKey(b?.received))+' · '+esc(loc(s.zoneId))+' · '+esc(qtyText(s,v))+'</option>';
+ }).join(""):'<option value="">暂无库存</option>';
+}
+function log(label,op,data){
+ state.transactions=Array.isArray(state.transactions)?state.transactions:[];
+ var d=Object.assign({},data||{});
+ state.transactions.unshift({
+  id:uid("t"),time:now(),label:label,operation:op,
+  variantId:d.variantId||"",batchId:d.batchId||"",sourceZoneId:d.sourceZoneId||"",
+  quantity:d.quantity==null?null:d.quantity,unit:d.unit||"",
+  before:d.before==null?null:d.before,after:d.after==null?null:d.after,
+  note:d.note||""
+ });
+}
+function normalizeVariableWeightStocks(){(state.stock||[]).forEach(function(s){var b=batch(s.batchId),v=b&&variant(b.variantId);if(v&&v.mode==="weight"&&Array.isArray(s.bagWeights)){s.bagWeights=s.bagWeights.map(num).filter(function(x){return x>0});s.sealedQty=s.bagWeights.length;s.openedQty=0}})}
 function render(){
- state.settings=state.settings||{};state.inspections=Array.isArray(state.inspections)?state.inspections:[];
+ normalizeVariableWeightStocks();
+ state.settings=state.settings||{};state.inspections=Array.isArray(state.inspections)?state.inspections:[];state.transactions=Array.isArray(state.transactions)?state.transactions:[];
  save();renderDashboard();renderInventory();renderProducts();renderFreezers();renderHistory();renderInspection();
 }
 function renderTagSummary(){
@@ -177,9 +252,7 @@ function renderTagSummary(){
      variants.forEach(function(v){
        state.stock.filter(function(s){var b=batch(s.batchId);return b&&b.variantId===v.id}).forEach(function(s){
          if(v.mode==="weight"){
-           tags[tag].packs+=num(s.sealedQty);
-           tags[tag].weight+=num(s.sealedQty)*num(v.packWeight)+num(s.openedQty);
-           tags[tag].openedWeight+=num(s.openedQty);
+           var bi=bagItems(s,v);tags[tag].packs+=bi.length;tags[tag].weight+=bi.reduce(function(a,x){return a+x.w},0);tags[tag].openedWeight+=bi.filter(function(x){return x.opened}).reduce(function(a,x){return a+x.w},0);
          }else{
            tags[tag].count+=num(s.sealedQty)+num(s.openedQty);
            tags[tag].openedCount+=num(s.openedQty);
@@ -201,7 +274,7 @@ function renderTagSummary(){
 function renderDashboard(){
  var rs=stockRows(),op=rs.filter(opened).sort(function(a,b){return String(a.openedAt).localeCompare(String(b.openedAt))});
  var low=state.variants.filter(function(v){return v.active!==false&&num(v.minStock)>0&&total(v.id)<num(v.minStock)});
- var grams=rs.reduce(function(sum,s){var v=variant(batch(s.batchId)?.variantId);return sum+(v?.mode==="weight"?num(s.sealedQty)*num(v.packWeight)+num(s.openedQty):0)},0);
+ var grams=rs.reduce(function(sum,s){var v=variant(batch(s.batchId)?.variantId);return sum+(v&&v.mode==="weight"?bagItems(s,v).reduce(function(a,x){return a+x.w},0):0)},0);
  $("#metrics").innerHTML=[["库存重量",fmt(grams)+" g"],["商品",state.products.length],["规格",state.variants.length],["低库存",low.length]].map(function(x){return '<div class="card"><div class="metric">'+esc(x[1])+'</div><div class="muted">'+esc(x[0])+'</div></div>'}).join("");
  renderTagSummary();
  $("#lowSummary").textContent=low.length?low.length+" 种需要补充":"无需补充";
@@ -230,9 +303,10 @@ function renderInventory(){
  });
  $("#inventoryList").innerHTML=arr.length?arr.map(function(g){
   var v=g.v,p=g.p;
-  var sealed=g.rows.reduce(function(x,s){return x+num(s.sealedQty)},0);
-  var openedQty=g.rows.reduce(function(x,s){return x+num(s.openedQty)},0);
-  var totalWeight=v.mode==="weight"?sealed*num(v.packWeight)+openedQty:0;
+  var bags=v.mode==="weight"?g.rows.reduce(function(a,s){return a.concat(bagItems(s,v))},[]):[];
+  var sealed=v.mode==="weight"?bags.filter(function(x){return !x.opened}).length:g.rows.reduce(function(x,s){return x+num(s.sealedQty)},0);
+  var openedQty=v.mode==="weight"?bags.filter(function(x){return x.opened}).reduce(function(a,x){return a+x.w},0):g.rows.reduce(function(x,s){return x+num(s.openedQty)},0);
+  var totalWeight=v.mode==="weight"?bags.reduce(function(a,x){return a+x.w},0):0;
   var main=v.mode==="weight"
     ?fmt(sealed)+" 包"+(openedQty>0?" + "+fmt(openedQty)+" g 开封":"")
     :fmt(sealed+openedQty)+" "+(v.unit||"件");
@@ -290,7 +364,7 @@ function renderInspection(){
  var head='<div class="card" style="margin-bottom:12px"><div class="row spread"><div><b>检查周期</b><div class="muted">默认每 '+inspectionDays()+' 天检查一次；完成检查后重新计算。</div></div><label style="min-width:130px">周期<select id="inspectionDaysSelect"><option value="90">90天</option><option value="180">180天</option><option value="365">365天</option></select></label></div><div style="margin-top:8px">库存批次：<b>'+batches.length+'</b> · 到期：<b class="low">'+due+'</b></div></div>';
  var cards=batches.map(function(b){
   var v=variant(b.variantId),st=inspectionStatus(b),last=lastInspection(b.id);
-  var stocks=state.stock.filter(function(s){return s.batchId===b.id&&(num(s.sealedQty)>0||num(s.openedQty)>0)});
+  var stocks=state.stock.filter(function(s){return s.batchId===b.id&&((v.mode==="weight"?bagItems(s,v).length:num(s.sealedQty)+num(s.openedQty))>0)});
   var totalText=stocks.map(function(s){return loc(s.zoneId)+" · "+qtyText(s,v)}).join("；");
   return '<div class="item"><div class="row spread"><div><b>'+esc(vlabel(v))+'</b><div class="muted">批次 '+esc(monthKey(b.received))+' · 入库 '+esc(b.received)+'</div><div class="muted">库存：'+esc(totalText||"—")+'</div><div class="muted '+esc(st.cls)+'">'+esc(st.text)+'</div>'+
    (last?'<div class="muted">上次检查：'+esc(String(last.checkedAt).slice(0,10))+' · '+esc(last.result||"正常")+(last.note?' · '+esc(last.note):"")+'</div>':'<div class="muted">尚未检查</div>')+
@@ -306,78 +380,50 @@ function closeModal(){try{$("#modal").close()}catch(e){$("#modal").removeAttribu
 function openDialog(kind,id,extra){
  if(kind==="product"||kind==="editProduct"){var p=id?product(id):null;openModal(p?"编辑商品":"新增商品",'<label>商品名称<input name="name" value="'+esc(p?.name||"")+'" required></label><label>分类<input name="category" value="'+esc(p?.category||"")+'"></label><label>标签（逗号分隔）<input name="tags" value="'+esc((p?.tags||[]).join(","))+'" placeholder="常用,早餐,肉类"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>',kind,id);return}
  if(kind==="variant"||kind==="editVariant"){var v=id?variant(id):null;openModal(v?"编辑规格":"新增规格",'<label>商品<select name="productId">'+state.products.map(function(p){return '<option value="'+p.id+'" '+(p.id===(v?.productId||extra)?"selected":"")+'>'+esc(p.name)+'</option>'}).join("")+'</select></label><label>规格名称<input name="name" value="'+esc(v?.name||"")+'" required></label><label>计量方式<select name="mode"><option value="weight" '+(v?.mode!=="count"?"selected":"")+'>按重量（g）</option><option value="count" '+(v?.mode==="count"?"selected":"")+'>按数量（盒/包/块等）</option></select></label><label>数量单位<input name="unit" value="'+esc(v?.unit||"盒")+'" placeholder="盒 / 包 / 块"></label><label>标准整包装重量（g，可选）<input name="packWeight" type="number" min="0" step="0.01" value="'+(v?.packWeight||"")+'"></label><label>最低库存<input name="minStock" type="number" min="0" step="0.01" value="'+(v?.minStock||0)+'"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>',kind,id);return}
- if(kind==="receive"||kind==="receiveVariant"){var pre=kind==="receiveVariant"?id:"";openModal("入库",'<label>规格<select name="variant">'+variantOptions()+'</select></label><div id="receiveFields"></div><label>目标区域<select name="zone">'+zoneOptions()+'</select></label><label>日期<input name="date" type="date" value="'+today()+'"></label><label>备注<input name="note"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>确认入库</button></div>','receive');if(pre)$("#modalForm [name=variant]").value=pre;renderReceiveFields();$("#modalForm [name=variant]").addEventListener("change",renderReceiveFields);return}
- if(kind==="batchReceive"){openModal("批量入库",'<div class="muted">重量型填写克数；数量型填写盒/包/块数量，允许小数。</div><div id="batchRows"></div><button type="button" class="secondary" id="addRow">＋ 添加一行</button><div class="actions"><button type="button" class="secondary cancel">取消</button><button>全部入库</button></div>','batchReceive');addBatchRow();$("#addRow").addEventListener("click",addBatchRow);return}
+ if(kind==="receive"||kind==="receiveVariant"){var pre=kind==="receiveVariant"?id:"";openModal("入库",'<label>规格<select name="variant" required>'+variantOptions()+'</select></label><div id="receiveFields"></div><label>目标区域<select name="zone">'+zoneOptions()+'</select></label><label>日期<input name="date" type="date" value="'+today()+'"></label><label>备注<input name="note"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>确认入库</button></div>','receive');if(pre)$("#modalForm [name=variant]").value=pre;renderReceiveFields();$("#modalForm [name=variant]").addEventListener("change",renderReceiveFields);return}
+ if(kind==="batchReceive"){openModal("批量入库",'<div class="muted">重量型填写每袋实际重量，支持 1000*4,500、1000×4,500 或 1700,500,730,360；数量型允许小数。</div><div id="batchRows"></div><button type="button" class="secondary" id="addRow">＋ 添加一行</button><div class="actions"><button type="button" class="secondary cancel">取消</button><button>全部入库</button></div>','batchReceive');addBatchRow();$("#addRow").addEventListener("click",addBatchRow);return}
  if(kind==="use"||kind==="useStock"){openModal("取用 · 开封优先",'<label>库存<select name="stock">'+stockOptions()+'</select></label><div class="muted">批次按“同一商品/规格 + 同一年月”划分。</div><label>取用数量<input name="amount" type="number" min="0.01" step="0.01" value="100"></label><div id="useInfo" class="muted"></div><label>备注<input name="note"></label><div class="notice">数量型：部分取用后，剩余部分自动作为“已开封 / 优先使用”。</div><div class="actions"><button type="button" class="secondary cancel">取消</button><button>确认取用</button></div>','use');if(kind==="useStock")$("#modalForm [name=stock]").value=id;updateUseInfo();$("#modalForm [name=stock]").addEventListener("change",updateUseInfo);return}
  if(kind==="adjust"){openModal("库存盘点",'<label>库存<select name="stock">'+stockOptions()+'</select></label><div id="adjustFields"></div><label>备注<input name="note"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>','adjust');$("#modalForm [name=stock]").addEventListener("change",renderAdjustFields);renderAdjustFields();return}
  if(kind==="freezer"||kind==="editFreezer"){var f=id?freezer(id):null;openModal(f?"编辑冰柜":"新增冰柜",'<label>冰柜名称<input name="name" value="'+esc(f?.name||"")+'" required></label><label>备注<input name="notes" value="'+esc(f?.notes||"")+'"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>',kind,id);return}
  if(kind==="editZone"){var z=zone(id);openModal("编辑区域",'<label>区域名称<input name="name" value="'+esc(z?.name||"")+'" required></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>','editZone',id);return}
 }
-function renderReceiveFields(){var v=variant($("#modalForm [name=variant]").value);if(!v)return;$("#receiveFields").innerHTML=v.mode==="weight"?'<div class="form2"><label>完整包装数量<input name="fullQty" type="number" min="0" step="1" value="'+(v.packWeight?1:0)+'"></label><label>开封 / 零散重量（g）<input name="openedQty" type="number" min="0" step="0.01" value="0"></label></div>':'<label>入库数量（允许小数）<input name="countQty" type="number" min="0.01" step="0.01" value="1"></label>'}
-function addBatchRow(){var d=document.createElement("div");d.className="item";d.style.marginTop="8px";d.innerHTML='<div class="row"><label style="flex:2">规格<select name="variant[]">'+variantOptions()+'</select></label><label style="flex:1">数量<input name="qty[]" type="number" min="0.01" step="0.01" value="1"></label><label style="flex:1">区域<select name="zone[]">'+zoneOptions()+'</select></label><button type="button" class="danger removeRow">×</button></div>';$("#batchRows").appendChild(d);d.querySelector(".removeRow").addEventListener("click",function(){d.remove()})}
+function renderReceiveFields(){
+ var v=variant($("#modalForm [name=variant]").value);if(!v)return;
+ $("#receiveFields").innerHTML=v.mode==="weight"?'<label>每袋实际重量（g）<input name="bagWeights" type="text" inputmode="decimal" placeholder="例如：1700, 500, 730, 360"></label><div class="muted">每袋重量可以不同。用逗号分隔。例如 1700,500,730,360 = 4 袋，共 3290 g。</div>':'<label>入库数量（允许小数）<input name="countQty" type="number" min="0.01" step="0.01" value="1"></label>';
+}
+function addBatchRow(){var d=document.createElement("div");d.className="item";d.style.marginTop="8px";d.innerHTML='<div class="row"><label style="flex:2">规格<select name="variant[]">'+variantOptions()+'</select></label><label style="flex:1">数量<input name="qty[]" placeholder="重量：1000*4,500" type="text" inputmode="decimal" inputmode="decimal" min="0.01" step="0.01" value="1"></label><label style="flex:1">区域<select name="zone[]">'+zoneOptions()+'</select></label><button type="button" class="danger removeRow">×</button></div>';$("#batchRows").appendChild(d);d.querySelector(".removeRow").addEventListener("click",function(){d.remove()})}
 function updateUseInfo(){var s=state.stock.find(function(x){return x.id===$("#modalForm [name=stock]").value}),v=s&&variant(batch(s.batchId).variantId);$("#useInfo").textContent=v?"单位："+(v.mode==="weight"?"g":v.unit||"件")+" · 当前 "+qtyText(s,v):""}
-function renderAdjustFields(){var s=state.stock.find(function(x){return x.id===$("#modalForm [name=stock]").value}),v=s&&variant(batch(s.batchId).variantId);$("#adjustFields").innerHTML=v?(v.mode==="weight"?'<div class="form2"><label>完整包装数量<input name="fullQty" type="number" min="0" step="1" value="'+fmt(s.sealedQty)+'"></label><label>开封克数<input name="openedQty" type="number" min="0" step="0.01" value="'+fmt(s.openedQty)+'"></label></div>':'<label>总数量（允许小数）<input name="totalQty" type="number" min="0" step="0.01" value="'+fmt(num(s.sealedQty)+num(s.openedQty))+'"></label>'):""}
+function renderAdjustFields(){
+ var s=state.stock.find(function(x){return x.id===$("#modalForm [name=stock]").value}),
+     v=s&&variant(batch(s.batchId).variantId);
+ if(!v){$("#adjustFields").innerHTML="";return;}
+ if(v.mode==="weight"){
+   var cur=bagWeights(s,v).join(", ");
+   $("#adjustFields").innerHTML='<label>盘点后的实际每袋重量（g）<input name="adjustQty" type="text" inputmode="decimal" value="'+esc(cur)+'" placeholder="例如 1000*4,500"></label><div class="muted">支持 1000*4,500、1000×4,500 或 1700,500,730,360。盘点会按这些袋子重新建立实际库存。</div>';
+ }else{
+   var curq=num(s.sealedQty)+num(s.openedQty);
+   $("#adjustFields").innerHTML='<label>盘点后的实际库存数量<input name="adjustQty" type="number" min="0" step="0.01" value="'+curq+'"></label>';
+ }
+}
 function consume(s,v,requested){
- var available=v.mode==="weight"
-   ?num(s.sealedQty)*num(v.packWeight)+num(s.openedQty)
-   :num(s.sealedQty)+num(s.openedQty);
- if(requested>available+1e-9)throw Error("库存不足：当前只有 "+fmt(available)+" "+(v.mode==="weight"?"g":v.unit||"件"));
-
- var remain=requested;
-
- // 1) Always consume existing opened portion first.
- if(num(s.openedQty)>0){
-   var takeOpen=Math.min(remain,num(s.openedQty));
-   s.openedQty-=takeOpen;
-   remain-=takeOpen;
+ requested=num(requested);if(requested<=0)throw Error("请输入取用数量");
+ if(v.mode==="weight"){
+  var a=bagItems(s,v),available=a.reduce(function(x,y){return x+y.w},0);
+  if(requested>available+1e-9)throw Error("库存不足：当前只有 "+fmt(available)+" g");
+  var oi=a.findIndex(function(x){return x.opened});
+  if(oi>=0){if(requested<a[oi].w-1e-9){a[oi].w-=requested;saveBagItems(s,a);return true}requested-=a[oi].w;a.splice(oi,1);}
+  while(requested>1e-9&&a.length){
+   var idx=-1,best=Infinity;
+   for(var i=0;i<a.length;i++)if(!a[i].opened&&a[i].w+1e-9>=requested&&a[i].w<best){idx=i;best=a[i].w}
+   if(idx>=0){var w=a[idx].w;if(requested<w-1e-9)a[idx]={w:w-requested,opened:true};else a.splice(idx,1);requested=0;break;}
+   var mi=0;for(var j=1;j<a.length;j++)if(a[j].w<a[mi].w)mi=j;requested-=a[mi].w;a.splice(mi,1);
+  }
+  saveBagItems(s,a);return true;
  }
-
- // 2) Then consume sealed units.
- if(remain>1e-9 && v.mode==="weight"){
-   var pw=num(v.packWeight);
-   if(pw<=0)throw Error("该规格没有设置标准整包装重量，请先编辑规格。");
-
-   // For a partial take from a sealed package, the package being opened
-   // becomes ONE opened package with the remaining grams.
-   if(remain<pw-1e-9){
-     if(num(s.sealedQty)<1)throw Error("完整包装数量不足");
-     s.sealedQty-=1;
-     s.openedQty=pw-remain+s.openedQty;
-     s.openedAt=s.openedAt||now();
-     remain=0;
-   }else{
-     var full=Math.floor((remain+1e-9)/pw);
-     if(full>num(s.sealedQty)+1e-9)throw Error("完整包装数量不足");
-     s.sealedQty-=full;
-     remain-=full*pw;
-
-     // If there is a non-zero remainder, open one additional package.
-     if(remain>1e-9){
-       if(num(s.sealedQty)<1)throw Error("完整包装数量不足");
-       s.sealedQty-=1;
-       s.openedQty+=pw-remain;
-       s.openedAt=s.openedAt||now();
-       remain=0;
-     }
-   }
- }else if(remain>1e-9 && v.mode==="count"){
-   // Integer take: remove whole unopened units.
-   // Fractional take: remove one unopened unit and keep the remainder opened.
-   var whole=Math.floor(remain+1e-9),frac=remain-whole;
-   if(frac>1e-9){
-     var units=whole+1;
-     if(units>num(s.sealedQty)+1e-9)throw Error("完整单位数量不足");
-     s.sealedQty-=units;
-     s.openedQty+=(1-frac);
-     s.openedAt=s.openedAt||now();
-   }else{
-     if(whole>num(s.sealedQty)+1e-9)throw Error("完整单位数量不足");
-     s.sealedQty-=whole;
-   }
-   remain=0;
- }
- if(remain>1e-9)throw Error("库存不足，操作未完成");
- if(num(s.openedQty)<1e-9)s.openedQty=0;
+ var available=num(s.sealedQty)+num(s.openedQty);if(requested>available+1e-9)throw Error("库存不足");
+ var rem=requested;if(s.openedQty>0){var take=Math.min(rem,s.openedQty);s.openedQty-=take;rem-=take}
+ if(rem>1e-9){var whole=Math.floor(rem),frac=rem-whole;if(frac>1e-9){if(whole+1>s.sealedQty)throw Error("完整单位数量不足");s.sealedQty-=whole+1;s.openedQty+=1-frac;s.openedAt=s.openedAt||now()}else s.sealedQty-=whole}
+ return true;
 }
 
 function submit(e){
@@ -405,9 +451,11 @@ function submit(e){
    var st=state.stock.find(function(x){return x.batchId===bt.id&&x.zoneId===zid});
    if(!st){st={id:uid("s"),batchId:bt.id,zoneId:zid,sealedQty:0,openedQty:0,openedAt:null};state.stock.push(st)}
    if(vr.mode==="weight"){
-    st.sealedQty+=Math.max(0,Math.round(num(fd.get("fullQty"))));
-    st.openedQty+=Math.max(0,num(fd.get("openedQty")));
-    if(st.openedQty>0)st.openedAt=st.openedAt||now();
+    var raw=String(fd.get("bagWeights")||"").trim();
+    if(!raw)throw Error("请填写每袋实际重量，例如 1700,500,730,360");
+    var weights=parseWeightList(raw);
+    if(!weights.length)throw Error("请填写有效的每袋重量");
+    var ex=bagItems(st,vr);weights.forEach(function(w){ex.push({w:w,opened:false})});saveBagItems(st,ex);
    }else{
     var q=Math.max(0,num(fd.get("countQty")));
     if(q<=0)throw Error("请输入入库数量");
@@ -415,27 +463,22 @@ function submit(e){
     st.sealedQty+=whole;
     if(frac>1e-9){st.openedQty+=frac;st.openedAt=st.openedAt||now()}
    }
-   log("RECEIVE","入库",{variantId:vr.id,batchId:bt.id,sourceZoneId:zid,quantity:vr.mode==="weight"?Math.round(num(fd.get("fullQty")))*vr.packWeight+num(fd.get("openedQty")):num(fd.get("countQty")),unit:vr.mode==="weight"?"g":vr.unit,note:val("note")});
+   log("RECEIVE","入库",{variantId:vr.id,batchId:bt.id,sourceZoneId:zid,quantity:vr.mode==="weight"?String(fd.get("bagWeights")||"").split(/[,，\s]+/).map(num).filter(function(x){return x>0}).reduce(function(a,b){return a+b},0):num(fd.get("countQty")),unit:vr.mode==="weight"?"g":vr.unit,note:val("note")});
   }
   else if(k==="batchReceive"){
    var vids=fd.getAll("variant[]"),qs=fd.getAll("qty[]"),zids=fd.getAll("zone[]");
    if(!vids.length)throw Error("请至少添加一行");
    vids.forEach(function(vid,i){
-    var vr=variant(vid),q=Math.max(0,num(qs[i]));
+    var vr=variant(vid),qraw=String(qs[i]==null?"":qs[i]).trim();
+     var parsedWeights=vr&&vr.mode==="weight"?parseWeightList(qraw):[];
+     var q=vr&&vr.mode==="weight"?parsedWeights.reduce(function(a,b){return a+b},0):Math.max(0,num(qraw));
     if(!vr||q<=0)return;
     var bt=findMonthlyBatch(vid,today());
     if(!bt){bt={id:uid("b"),variantId:vid,received:today(),createdAt:now()};state.batches.push(bt)}
     var st=state.stock.find(function(x){return x.batchId===bt.id&&x.zoneId===zids[i]});
     if(!st){st={id:uid("s"),batchId:bt.id,zoneId:zids[i],sealedQty:0,openedQty:0,openedAt:null};state.stock.push(st)}
     if(vr.mode==="weight"){
-     var pw=num(vr.packWeight);
-     if(pw>0){
-      var full=Math.floor((q+1e-9)/pw),rem=q-full*pw;
-      st.sealedQty+=full;
-      if(rem>1e-9){st.openedQty+=rem;st.openedAt=st.openedAt||now()}
-     }else{
-      st.openedQty+=q;st.openedAt=st.openedAt||now();
-     }
+     var exb=bagItems(st,vr);parsedWeights.forEach(function(w){exb.push({w:w,opened:false});});saveBagItems(st,exb);
     }else{
      var whole=Math.floor(q),frac=q-whole;
      st.sealedQty+=whole;
@@ -451,13 +494,30 @@ function submit(e){
    log("ISSUE","取用",{variantId:vu.id,batchId:su.batchId,sourceZoneId:su.zoneId,quantity:amount,unit:vu.mode==="weight"?"g":vu.unit,before:before,after:qtyText(su,vu),note:val("note")});
   }
   else if(k==="adjust"){
-   var sa=state.stock.find(function(x){return x.id===val("stock")}),va=variant(batch(sa?.batchId)?.variantId);
-   if(!sa||!va)throw Error("库存不存在");
-   if(va.mode==="weight"){sa.sealedQty=Math.max(0,Math.round(num(fd.get("fullQty"))));sa.openedQty=Math.max(0,num(fd.get("openedQty")))}
-   else{var tq=Math.max(0,num(fd.get("totalQty")));sa.sealedQty=Math.floor(tq);sa.openedQty=tq-Math.floor(tq);if(sa.openedQty>0)sa.openedAt=sa.openedAt||now()}
-   log("ADJUSTMENT","盘点",{variantId:va.id,batchId:sa.batchId,sourceZoneId:sa.zoneId,quantity:va.mode==="weight"?sa.sealedQty*va.packWeight+sa.openedQty:sa.sealedQty+sa.openedQty,unit:va.mode==="weight"?"g":va.unit,note:val("note")});
-  }
-  else if(k==="inspection"){
+    var sa=state.stock.find(function(x){return x.id===val("stock")}),
+        va=variant(batch(sa?.batchId)?.variantId);
+    if(!sa||!va)throw Error("请选择有效库存");
+    var raw=String(fd.get("adjustQty")||"").trim();
+    if(!raw)throw Error("请输入盘点后的实际库存");
+    var target;
+    if(va.mode==="weight"){
+      var wi=parseWeightList(raw);
+      target=wi.reduce(function(a,b){return a+b},0);
+      if(!wi.length||target<0)throw Error("请输入有效重量");
+      var oldTotal=bagItems(sa,va).reduce(function(a,b){return a+b.w},0);
+      saveBagItems(sa,wi.map(function(w){return {w:w,opened:false}}));
+      log("ADJUST","盘点",{variantId:va.id,batchId:sa.batchId,sourceZoneId:sa.zoneId,before:oldTotal,after:target,unit:"g",bagWeights:wi});
+    }else{
+      target=num(raw);
+      if(target<0)throw Error("盘点数量不能小于 0");
+      var before=qtyText(sa,va);
+      var whole=Math.floor(target),frac=target-whole;
+      sa.sealedQty=whole;
+      sa.openedQty=frac;
+      sa.openedAt=frac>1e-9?now():null;
+      log("ADJUST","盘点",{variantId:va.id,batchId:sa.batchId,sourceZoneId:sa.zoneId,before:before,after:target,unit:va.unit});
+    }
+  }else if(k==="inspection"){
    var ib=batch(id),iv=ib&&variant(ib.variantId);
    if(!ib||!iv)throw Error("检查对象不存在");
    state.inspections=state.inspections||[];
@@ -499,7 +559,7 @@ function importOCR(){var count=0,n=Number($("#ocrPreview").dataset.count||0);for
 $("#nav").addEventListener("click",function(e){var b=e.target.closest("button[data-view]");if(b)showView(b.dataset.view)});
 document.addEventListener("click",function(e){
  var b=e.target.closest("button");if(!b)return;
- if(b.id==="modalClose"||b.classList.contains("cancel")){e.preventDefault();closeModal();return}
+ if(b.id==="modalClose"||b.classList.contains("cancel")){e.preventDefault();e.stopPropagation();closeModal();return}
  if(b.dataset.open){e.preventDefault();openDialog(b.dataset.open,b.dataset.id||null,b.dataset.variant||null);return}
  var a=b.dataset.action,id=b.dataset.id;if(!a)return;
  try{
@@ -519,11 +579,53 @@ document.addEventListener("click",function(e){
 });
 $("#modalForm").addEventListener("submit",function(e){if(e.target.dataset.kind==="newZone"){e.preventDefault();var f=e.target.elements.freezerId.value;state.zones.push({id:uid("z"),freezerId:f,name:e.target.elements.name.value,sort:state.zones.filter(function(z){return z.freezerId===f}).length+1,active:true});closeModal();render();toast("区域已新增")}else submit(e)});
 $("#modalClose").addEventListener("click",closeModal);
-$("#modal").addEventListener("click",function(e){if(e.target===e.currentTarget)closeModal()});
+$("#modal").addEventListener("click",function(e){
+ e.stopPropagation();
+ var b=e.target.closest("button.cancel");
+ if(b){e.preventDefault();closeModal();return;}
+});
+$("#modal").addEventListener("cancel",function(e){e.preventDefault();});
 $("#search").addEventListener("input",renderInventory);
 $("#exportBtn").addEventListener("click",function(){var a=document.createElement("a"),u=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:"application/json"}));a.href=u;a.download="freezer-inventory-"+today()+".json";a.click();setTimeout(function(){URL.revokeObjectURL(u)},500)});
-$("#restoreFile").addEventListener("change",function(e){var file=e.target.files?.[0];if(!file)return;var r=new FileReader();r.onload=function(){try{var x=JSON.parse(r.result);if(!x.products||!x.variants||!x.freezers||!x.zones||!x.batches||!x.stock)throw Error();state=x;state.version=15;state.transactions=state.transactions||[];state.inspections=state.inspections||[];render();toast("恢复成功")}catch(err){alert("无效的备份")}};r.readAsText(file)});
-$("#resetBtn").addEventListener("click",function(){if(confirm("确定恢复示例数据？")){state=demo();render();toast("已恢复示例数据")}});
+$("#restoreFile").addEventListener("change",function(e){var file=e.target.files?.[0];if(!file)return;var r=new FileReader();r.onload=function(){try{var x=JSON.parse(r.result);if(!x.products||!x.variants||!x.freezers||!x.zones||!x.batches||!x.stock)throw Error();state=x;state.version=23;state.transactions=state.transactions||[];state.inspections=state.inspections||[];state.settings=state.settings||{inspectionDays:180};render();toast("恢复成功")}catch(err){alert("无效的备份")}};r.readAsText(file)});
+function confirmTwice(actionType){
+ var title=actionType==='clear'?'清除所有数据':'恢复示例数据';
+ var text=actionType==='clear'
+  ?'此操作将删除所有商品、规格、冰柜、区域、库存、批次、操作流水和检查记录，且无法恢复。'
+  :'此操作将用系统示例数据覆盖当前全部数据，当前数据将被替换。';
+ var second=actionType==='clear'?'最后确认：确定永久清除全部数据吗？':'最后确认：确定覆盖当前数据并恢复示例数据吗？';
+ var html='<div class="confirm-warning"><b>'+esc(title)+'</b><div style="margin-top:8px">'+esc(text)+'</div></div>'+
+  '<div class="actions" style="margin-top:16px"><button type="button" class="secondary" id="confirmCancel">取消</button><button type="button" class="danger" id="confirmStep1">继续</button></div>';
+ openModal(title,html,'confirm',actionType);
+ setTimeout(function(){
+  var c=$('#confirmCancel'),n=$('#confirmStep1');
+  if(c)c.onclick=function(){closeModal()};
+  if(n)n.onclick=function(){
+   var ok=window.confirm(second);
+   if(!ok)return;
+   if(actionType==='clear'){
+    state={version:23,products:[],variants:[],freezers:[],zones:[],batches:[],stock:[],transactions:[],inspections:[],settings:{inspectionDays:180}};
+    save();closeModal();render();toast('已清除所有数据');
+   }else{
+    state=demo();state.version=23;state.transactions=state.transactions||[];state.inspections=state.inspections||[];state.settings=state.settings||{inspectionDays:180};
+    save();closeModal();render();toast('已恢复示例数据');
+   }
+  };
+ },0);
+}
+$("#resetBtn").addEventListener("click",function(e){e.preventDefault();e.stopPropagation();confirmTwice('restore')});
+$("#clearAllBtn").addEventListener("click",function(e){e.preventDefault();e.stopPropagation();confirmTwice('clear')});
+$("#clearStockBtn").addEventListener("click",function(e){
+ e.preventDefault();e.stopPropagation();
+ var first=window.confirm("确定要一键清空全部库存吗？\n\n只会清零库存数量，不会删除商品、规格、冰柜、区域、批次或历史记录。");
+ if(!first)return;
+ var second=window.confirm("第二次确认：真的要把全部库存清零吗？\n\n此操作会把所有库存数量变为 0。");
+ if(!second)return;
+ try{
+  (state.stock||[]).forEach(function(s){s.sealedQty=0;s.openedQty=0;s.openedAt=null;s.bagWeights=[];s.bagItems=[]});
+  save();render();toast("已一键清空全部库存");
+ }catch(err){console.error(err);alert("清空库存失败："+(err.message||err))}
+});
 $("#ocrFile").addEventListener("change",function(e){var f=e.target.files?.[0];if(f)doOCR(f)});
 $("#ocrParse").addEventListener("click",parseOCR);$("#ocrImport").addEventListener("click",importOCR);
 render();
