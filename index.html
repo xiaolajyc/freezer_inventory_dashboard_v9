@@ -152,6 +152,12 @@ function stockRows(){return state.stock.filter(function(s){var b=batch(s.batchId
 function opened(s){return num(s.openedQty)>1e-9||s.openedAt!=null}
 function vlabel(v){return v?(product(v.productId)?.name||"未知商品")+" · "+v.name:"—"}
 function loc(zid){var z=zone(zid);return z?(freezer(z.freezerId)?.name||"未知冰柜")+" / "+z.name:"—"}
+function normalizeWeightInputText(el){
+  if(!el)return;
+  var v=String(el.value||"");
+  v=v.replace(/＋/g,"+").replace(/，/g,",").replace(/×/g,"x").replace(/＊/g,"*");
+  if(el.value!==v)el.value=v;
+}
 function parseWeightList(raw){
  var text=String(raw==null?"":raw).trim();
  if(!text)return [];
@@ -391,9 +397,9 @@ function openDialog(kind,id,extra){
 }
 function renderReceiveFields(){
  var v=variant($("#modalForm [name=variant]").value);if(!v)return;
- $("#receiveFields").innerHTML=v.mode==="weight"?'<label>每袋实际重量（g）<input name="bagWeights" type="text" inputmode="decimal" placeholder="例如：1700, 500, 730, 360"></label><div class="muted">每袋重量可以不同。用逗号分隔。例如 1700,500,730,360 = 4 袋，共 3290 g。</div>':'<label>入库数量（允许小数）<input name="countQty" type="number" min="0.01" step="0.01" value="1"></label>';
+ $("#receiveFields").innerHTML=v.mode==="weight"?'<label>每袋实际重量（g）<input name="bagWeights" type="text" placeholder="例如：1700, 500, 730, 360"></label><div class="muted">每袋重量可以不同。用逗号分隔。例如 1700,500,730,360 = 4 袋，共 3290 g。</div>':'<label>入库数量（允许小数）<input name="countQty" type="number" min="0.01" step="0.01" value="1"></label>';
 }
-function addBatchRow(){var d=document.createElement("div");d.className="item";d.style.marginTop="8px";d.innerHTML='<div class="row"><label style="flex:2">规格<select name="variant[]">'+variantOptions()+'</select></label><label style="flex:1">数量<input name="qty[]" placeholder="如 360g+20g+330g 或 300g x 4" type="text" inputmode="decimal" inputmode="decimal" min="0.01" step="0.01" value="1"></label><label style="flex:1">区域<select name="zone[]">'+zoneOptions()+'</select></label><button type="button" class="danger removeRow">×</button></div>';$("#batchRows").appendChild(d);d.querySelector(".removeRow").addEventListener("click",function(){d.remove()})}
+function addBatchRow(){var d=document.createElement("div");d.className="item";d.style.marginTop="8px";d.innerHTML='<div class="row"><label style="flex:2">规格<select name="variant[]">'+variantOptions()+'</select></label><label style="flex:1">数量<input name="qty[]" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="如 360g+20g+330g 或 300g x 4" type="text" inputmode="decimal" min="0.01" step="0.01" value="1"></label><label style="flex:1">区域<select name="zone[]">'+zoneOptions()+'</select></label><button type="button" class="danger removeRow">×</button></div>';$("#batchRows").appendChild(d);d.querySelector(".removeRow").addEventListener("click",function(){d.remove()})}
 function updateUseInfo(){var s=state.stock.find(function(x){return x.id===$("#modalForm [name=stock]").value}),v=s&&variant(batch(s.batchId).variantId);$("#useInfo").textContent=v?"单位："+(v.mode==="weight"?"g":v.unit||"件")+" · 当前 "+qtyText(s,v):""}
 function renderAdjustFields(){
  var s=state.stock.find(function(x){return x.id===$("#modalForm [name=stock]").value}),
@@ -401,7 +407,7 @@ function renderAdjustFields(){
  if(!v){$("#adjustFields").innerHTML="";return;}
  if(v.mode==="weight"){
    var cur=bagWeights(s,v).join(", ");
-   $("#adjustFields").innerHTML='<label>盘点后的实际每袋重量（g）<input name="adjustQty" type="text" inputmode="decimal" value="'+esc(cur)+'" placeholder="例如 1000*4,500"></label><div class="muted">支持 360g+20g+330g+230g+310g、300g x 4、1000*4,500 等格式。盘点会按这些袋子重新建立实际库存。</div>';
+   $("#adjustFields").innerHTML='<label>盘点后的实际每袋重量（g）<input name="adjustQty" type="text" value="'+esc(cur)+'" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="例如 1000*4,500"></label><div class="muted">支持 360g+20g+330g+230g+310g、300g x 4、1000*4,500 等格式。盘点会按这些袋子重新建立实际库存。</div>';
  }else{
    var curq=num(s.sealedQty)+num(s.openedQty);
    $("#adjustFields").innerHTML='<label>盘点后的实际库存数量<input name="adjustQty" type="number" min="0" step="0.01" value="'+curq+'"></label>';
@@ -632,6 +638,17 @@ $("#ocrFile").addEventListener("change",function(e){var f=e.target.files?.[0];if
 $("#ocrParse").addEventListener("click",parseOCR);$("#ocrImport").addEventListener("click",importOCR);
 render();
 })();
+
+document.addEventListener("input",function(e){
+  var el=e.target;
+  if(el && el.tagName==="INPUT"){
+    var p=String(el.getAttribute("placeholder")||"");
+    if(p.indexOf("360g+20g")>=0 || p.indexOf("1000*4")>=0){
+      normalizeWeightInputText(el);
+    }
+  }
+});
+
 </script>
 </body>
 </html>
