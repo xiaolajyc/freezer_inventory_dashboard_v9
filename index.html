@@ -242,7 +242,7 @@ function log(label,op,data){
   note:d.note||""
  });
 }
-function normalizeVariableWeightStocks(){(state.stock||[]).forEach(function(s){var b=batch(s.batchId),v=b&&variant(b.variantId);if(v&&v.mode==="weight"&&Array.isArray(s.bagWeights)){s.bagWeights=s.bagWeights.map(num).filter(function(x){return x>0});s.sealedQty=s.bagWeights.length;s.openedQty=0}})}
+
 function render(){
  normalizeVariableWeightStocks();
  state.settings=state.settings||{};state.inspections=Array.isArray(state.inspections)?state.inspections:[];state.transactions=Array.isArray(state.transactions)?state.transactions:[];
@@ -397,9 +397,9 @@ function openDialog(kind,id,extra){
 }
 function renderReceiveFields(){
  var v=variant($("#modalForm [name=variant]").value);if(!v)return;
- $("#receiveFields").innerHTML=v.mode==="weight"?'<label>每袋实际重量（g）<input name="bagWeights" type="text" placeholder="例如：1700, 500, 730, 360"></label><div class="muted">每袋重量可以不同。用逗号分隔。例如 1700,500,730,360 = 4 袋，共 3290 g。</div>':'<label>入库数量（允许小数）<input name="countQty" type="number" min="0.01" step="0.01" value="1"></label>';
+ $("#receiveFields").innerHTML=v.mode==="weight"?'<label>每袋实际重量（g）<input name="bagWeights" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="例如：360g+20g+330g 或 300g x 4"></label><div class="muted">每袋重量可以不同。用逗号分隔。例如 1700,500,730,360 = 4 袋，共 3290 g。</div>':'<label>入库数量（允许小数）<input name="countQty" type="number" min="0.01" step="0.01" value="1"></label>';
 }
-function addBatchRow(){var d=document.createElement("div");d.className="item";d.style.marginTop="8px";d.innerHTML='<div class="row"><label style="flex:2">规格<select name="variant[]">'+variantOptions()+'</select></label><label style="flex:1">数量<input name="qty[]" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="如 360g+20g+330g 或 300g x 4" type="text" inputmode="decimal" min="0.01" step="0.01" value="1"></label><label style="flex:1">区域<select name="zone[]">'+zoneOptions()+'</select></label><button type="button" class="danger removeRow">×</button></div>';$("#batchRows").appendChild(d);d.querySelector(".removeRow").addEventListener("click",function(){d.remove()})}
+function addBatchRow(){var d=document.createElement("div");d.className="item";d.style.marginTop="8px";d.innerHTML='<div class="row"><label style="flex:2">规格<select name="variant[]">'+variantOptions()+'</select></label><label style="flex:1">数量<input name="qty[]" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="如 360g+20g+330g 或 300g x 4" type="text" min="0.01" step="0.01" value="1"></label><label style="flex:1">区域<select name="zone[]">'+zoneOptions()+'</select></label><button type="button" class="danger removeRow">×</button></div>';$("#batchRows").appendChild(d);d.querySelector(".removeRow").addEventListener("click",function(){d.remove()})}
 function updateUseInfo(){var s=state.stock.find(function(x){return x.id===$("#modalForm [name=stock]").value}),v=s&&variant(batch(s.batchId).variantId);$("#useInfo").textContent=v?"单位："+(v.mode==="weight"?"g":v.unit||"件")+" · 当前 "+qtyText(s,v):""}
 function renderAdjustFields(){
  var s=state.stock.find(function(x){return x.id===$("#modalForm [name=stock]").value}),
@@ -471,7 +471,7 @@ function submit(e){
     st.sealedQty+=whole;
     if(frac>1e-9){st.openedQty+=frac;st.openedAt=st.openedAt||now()}
    }
-   log("RECEIVE","入库",{variantId:vr.id,batchId:bt.id,sourceZoneId:zid,quantity:vr.mode==="weight"?String(fd.get("bagWeights")||"").split(/[,，\s]+/).map(num).filter(function(x){return x>0}).reduce(function(a,b){return a+b},0):num(fd.get("countQty")),unit:vr.mode==="weight"?"g":vr.unit,note:val("note")});
+   log("RECEIVE","入库",{variantId:vr.id,batchId:bt.id,sourceZoneId:zid,quantity:vr.mode==="weight"?parseWeightList(String(fd.get("bagWeights")||"")).reduce(function(a,b){return a+b},0):num(fd.get("countQty")),unit:vr.mode==="weight"?"g":vr.unit,note:val("note")});
   }
   else if(k==="batchReceive"){
    var vids=fd.getAll("variant[]"),qs=fd.getAll("qty[]"),zids=fd.getAll("zone[]");
@@ -638,17 +638,6 @@ $("#ocrFile").addEventListener("change",function(e){var f=e.target.files?.[0];if
 $("#ocrParse").addEventListener("click",parseOCR);$("#ocrImport").addEventListener("click",importOCR);
 render();
 })();
-
-document.addEventListener("input",function(e){
-  var el=e.target;
-  if(el && el.tagName==="INPUT"){
-    var p=String(el.getAttribute("placeholder")||"");
-    if(p.indexOf("360g+20g")>=0 || p.indexOf("1000*4")>=0){
-      normalizeWeightInputText(el);
-    }
-  }
-});
-
 </script>
 </body>
 </html>
