@@ -50,7 +50,7 @@ dialog{width:min(700px,calc(100% - 18px));border:1px solid var(--line);border-ra
 
 <main>
 <section id="dashboard" class="view active">
-<div class="row spread"><h2>今日库存概况</h2><div class="row"><button data-open="receive">＋ 入库</button><button class="secondary" data-open="batchReceive">＋ 批量入库</button><button class="secondary" data-open="use">－ 取用</button><button class="secondary" data-open="adjust">▣ 盘点</button></div></div>
+<div class="row spread"><h2>今日库存概况</h2><div class="row"><button class="secondary" data-open="batchReceive">＋ 批量入库</button><button class="secondary" data-open="batchUse">－ 批量取用</button><button class="secondary" data-open="batchAdjust">▣ 批量盘点</button></div></div>
 <div id="metrics" class="grid"></div>
 <div class="card lowbox" style="margin-top:12px"><div class="row spread"><div><h3>⚠️ 低库存 / 需要补充</h3><div class="muted">只有低于最低库存的商品才显示。</div></div><b id="lowSummary" class="low"></b></div><div id="lowStock" class="list"></div></div>
 <div class="card priority" style="margin-top:12px"><h3>⭐ 优先使用 / 已开封</h3><div class="muted">重量型有开封克数；盒/包/块等数量型只要部分取用，剩余部分就会进入这里。</div><div id="priority" class="list" style="margin-top:8px"></div></div><div class="card" style="margin-top:12px"><h3>🏷️ 按标签统计</h3><div class="muted">重量型按“包”统计，同时显示总重量；数量型按实际数量统计。</div><div id="tagSummary" class="category-grid" style="margin-top:8px"></div></div>
@@ -324,7 +324,7 @@ function renderInventory(){
   return '<div class="group-card"><div class="row spread" style="margin:0"><div><b>'+esc(p?.name||"未知商品")+'</b><div class="muted">'+esc(v.name)+' · '+esc(loc(g.zoneId))+'</div><div style="font-size:19px;font-weight:800;margin-top:4px">'+esc(main)+'</div><div class="muted">'+esc(detail)+'</div></div><span class="badge">'+(openedQty>0?"⭐ 有开封":"未开封")+'</span></div>'+
   g.rows.sort(function(a,b){return (opened(b)-opened(a))||String(batch(a.batchId).received).localeCompare(String(batch(b.batchId).received))}).map(function(s){
    var b=batch(s.batchId);
-   return '<div class="group-sub"><div class="muted">批次 '+esc(monthKey(b.received))+' · '+esc(qtyText(s,v))+(opened(s)?" · ⭐ 开封":"")+'</div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="secondary" data-action="useStock" data-id="'+s.id+'">取用</button><button data-action="receiveVariant" data-id="'+v.id+'" data-zone="'+s.zoneId+'">入库</button></div></div>';
+   return '<div class="group-sub"><div class="muted">批次 '+esc(monthKey(b.received))+' · '+esc(qtyText(s,v))+(opened(s)?" · ⭐ 开封":"")+'</div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="secondary" data-action="adjustStock" data-id="'+s.id+'">盘点</button><button data-action="receiveVariant" data-id="'+v.id+'" data-zone="'+s.zoneId+'">入库</button><button class="secondary" data-action="useStock" data-id="'+s.id+'">取用</button></div></div>';
   }).join("")+'</div>';
  }).join(""):"<div class='card'>没有匹配库存。</div>";
 }
@@ -390,10 +390,22 @@ function openDialog(kind,id,extra){
  if(kind==="variant"||kind==="editVariant"){var v=id?variant(id):null;openModal(v?"编辑规格":"新增规格",'<label>商品<select name="productId">'+state.products.map(function(p){return '<option value="'+p.id+'" '+(p.id===(v?.productId||extra)?"selected":"")+'>'+esc(p.name)+'</option>'}).join("")+'</select></label><label>规格名称<input name="name" value="'+esc(v?.name||"")+'" required></label><label>计量方式<select name="mode"><option value="weight" '+(v?.mode!=="count"?"selected":"")+'>按重量（g）</option><option value="count" '+(v?.mode==="count"?"selected":"")+'>按数量（盒/包/块等）</option></select></label><label>数量单位<input name="unit" value="'+esc(v?.unit||"盒")+'" placeholder="盒 / 包 / 块"></label><label>标准整包装重量（g，可选）<input name="packWeight" type="number" min="0" step="0.01" value="'+(v?.packWeight||"")+'"></label><label>最低库存<input name="minStock" type="number" min="0" step="0.01" value="'+(v?.minStock||0)+'"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>',kind,id);return}
  if(kind==="receive"||kind==="receiveVariant"){var pre=kind==="receiveVariant"?id:"",preZone=kind==="receiveVariant"?extra:"";openModal("入库",'<label>规格<select name="variant" required>'+variantOptions()+'</select></label><div id="receiveFields"></div><label>目标区域<select name="zone">'+zoneOptions()+'</select></label><label>日期<input name="date" type="date" value="'+today()+'"></label><label>备注<input name="note"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>确认入库</button></div>','receive');if(pre)$("#modalForm [name=variant]").value=pre;if(preZone&&zone(preZone))$("#modalForm [name=zone]").value=preZone;renderReceiveFields();$("#modalForm [name=variant]").addEventListener("change",renderReceiveFields);return}
  if(kind==="batchReceive"){openModal("批量入库",'<div class="muted">重量型填写每袋实际重量，支持 360g+20g+330g+230g+310g、300g x 4、1000*4,500 等格式；数量型允许小数。</div><div id="batchRows"></div><button type="button" class="secondary" id="addRow">＋ 添加一行</button><div class="actions"><button type="button" class="secondary cancel">取消</button><button>全部入库</button></div>','batchReceive');addBatchRow();$("#addRow").addEventListener("click",addBatchRow);return}
+ if(kind==="batchUse"){openModal("批量取用",'<div class="muted">可同时取用多个库存批次；按开封优先规则处理。</div><div id="batchUseRows"></div><button type="button" class="secondary" id="addUseRow">＋ 添加一行</button><div class="actions"><button type="button" class="secondary cancel">取消</button><button>全部取用</button></div>','batchUse');addBatchUseRow();$("#addUseRow").addEventListener("click",addBatchUseRow);return}
+ if(kind==="batchAdjust"){openModal("批量盘点",'<div class="muted">可同时盘点多个库存批次。重量型填写盘点后的每袋实际重量。</div><div id="batchAdjustRows"></div><button type="button" class="secondary" id="addAdjustRow">＋ 添加一行</button><div class="actions"><button type="button" class="secondary cancel">取消</button><button>全部保存</button></div>','batchAdjust');addBatchAdjustRow();$("#addAdjustRow").addEventListener("click",addBatchAdjustRow);return}
  if(kind==="use"||kind==="useStock"){openModal("取用 · 开封优先",'<label>库存<select name="stock">'+stockOptions()+'</select></label><div class="muted">批次按“同一商品/规格 + 同一年月”划分。</div><label>取用数量<input name="amount" type="number" min="0.01" step="0.01" value="100"></label><div id="useInfo" class="muted"></div><label>备注<input name="note"></label><div class="notice">数量型：部分取用后，剩余部分自动作为“已开封 / 优先使用”。</div><div class="actions"><button type="button" class="secondary cancel">取消</button><button>确认取用</button></div>','use');if(kind==="useStock")$("#modalForm [name=stock]").value=id;updateUseInfo();$("#modalForm [name=stock]").addEventListener("change",updateUseInfo);return}
  if(kind==="adjust"){openModal("库存盘点",'<label>库存<select name="stock">'+stockOptions()+'</select></label><div id="adjustFields"></div><label>备注<input name="note"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>','adjust');$("#modalForm [name=stock]").addEventListener("change",renderAdjustFields);renderAdjustFields();return}
  if(kind==="freezer"||kind==="editFreezer"){var f=id?freezer(id):null;openModal(f?"编辑冰柜":"新增冰柜",'<label>冰柜名称<input name="name" value="'+esc(f?.name||"")+'" required></label><label>备注<input name="notes" value="'+esc(f?.notes||"")+'"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>',kind,id);return}
  if(kind==="editZone"){var z=zone(id);openModal("编辑区域",'<label>区域名称<input name="name" value="'+esc(z?.name||"")+'" required></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>','editZone',id);return}
+}
+function addBatchUseRow(){
+ var box=$("#batchUseRows"),d=document.createElement("div");d.className="card";d.style.marginTop="8px";
+ d.innerHTML='<label>库存<select name="useStock[]">'+stockOptions()+'</select></label><label>取用数量<input name="useQty[]" type="number" min="0.01" step="0.01" value="100"></label><button type="button" class="ghost remove-row">删除</button>';
+ box.appendChild(d);d.querySelector(".remove-row").onclick=function(){d.remove()};
+}
+function addBatchAdjustRow(){
+ var box=$("#batchAdjustRows"),d=document.createElement("div");d.className="card";d.style.marginTop="8px";
+ d.innerHTML='<label>库存<select name="adjustStock[]">'+stockOptions()+'</select></label><label>盘点后库存<input name="adjustQty[]" type="text" inputmode="text" autocomplete="off" placeholder="重量型：1000*4,500；数量型：10.5"></label><button type="button" class="ghost remove-row">删除</button>';
+ box.appendChild(d);d.querySelector(".remove-row").onclick=function(){d.remove()};
 }
 function renderReceiveFields(){
  var v=variant($("#modalForm [name=variant]").value);if(!v)return;
@@ -501,6 +513,31 @@ function submit(e){
    var before=qtyText(su,vu);consume(su,vu,amount);
    log("ISSUE","取用",{variantId:vu.id,batchId:su.batchId,sourceZoneId:su.zoneId,quantity:amount,unit:vu.mode==="weight"?"g":vu.unit,before:before,after:qtyText(su,vu),note:val("note")});
   }
+  else if(k==="batchUse"){
+   var us=fd.getAll("useStock[]"),uq=fd.getAll("useQty[]");if(!us.length)throw Error("请至少添加一行");
+   us.forEach(function(sid,i){
+    var st=state.stock.find(function(x){return x.id===sid}),vv=st&&variant(batch(st.batchId)?.variantId),q=num(uq[i]);
+    if(!st||!vv||q<=0)return;
+    var before=qtyText(st,vv);consume(st,vv,q);var after=qtyText(st,vv);
+    log("USE","批量取用",{variantId:vv.id,batchId:st.batchId,sourceZoneId:st.zoneId,quantity:q,unit:vv.mode==="weight"?"g":vv.unit,before:before,after:after});
+   });
+  }
+  else if(k==="batchAdjust"){
+   var as=fd.getAll("adjustStock[]"),aq=fd.getAll("adjustQty[]");if(!as.length)throw Error("请至少添加一行");
+   as.forEach(function(sid,i){
+    var st=state.stock.find(function(x){return x.id===sid}),vv=st&&variant(batch(st.batchId)?.variantId),raw=String(aq[i]||"").trim();
+    if(!st||!vv||!raw)return;
+    var before=qtyText(st,vv),target;
+    if(vv.mode==="weight"){
+     var wi=parseWeightList(raw);if(!wi.length)throw Error("请填写有效重量");
+     target=wi.reduce(function(a,b){return a+b},0);saveBagItems(st,wi.map(function(w){return {w:w,opened:false}}));
+    }else{
+     target=num(raw);if(target<0)throw Error("盘点数量不能小于 0");
+     var whole=Math.floor(target),frac=target-whole;st.sealedQty=whole;st.openedQty=frac;st.openedAt=frac>1e-9?now():null;
+    }
+    log("ADJUST","批量盘点",{variantId:vv.id,batchId:st.batchId,sourceZoneId:st.zoneId,before:before,after:target,unit:vv.mode==="weight"?"g":vv.unit});
+   });
+  }
   else if(k==="adjust"){
     var sa=state.stock.find(function(x){return x.id===val("stock")}),
         va=variant(batch(sa?.batchId)?.variantId);
@@ -572,6 +609,7 @@ document.addEventListener("click",function(e){
  var a=b.dataset.action,id=b.dataset.id;if(!a)return;
  try{
   if(a==="receiveVariant")openDialog("receiveVariant",id,b.dataset.zone||null);
+  else if(a==="adjustStock")openDialog("adjust",id);
   else if(a==="useStock")openDialog("useStock",id);
   else if(a==="inspection")openInspection(id);
   else if(a==="adjustStock")openDialog("adjust",id);
