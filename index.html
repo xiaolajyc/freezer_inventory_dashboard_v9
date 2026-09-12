@@ -149,7 +149,10 @@ function findMonthlyBatch(variantId,date){
 function zone(id){return state.zones.find(function(x){return x.id===id})}
 function freezer(id){return state.freezers.find(function(x){return x.id===id})}
 function stockRows(){return state.stock.filter(function(s){var b=batch(s.batchId),v=b&&variant(b.variantId);return v&&((v.mode==="weight"?bagWeights(s,v).length:num(s.sealedQty)+num(s.openedQty))>1e-9)})}
-function opened(s){return num(s.openedQty)>1e-9||s.openedAt!=null}
+function opened(s){
+ if(Array.isArray(s.bagItems)&&s.bagItems.some(function(x){return x&&x.opened&&num(x.w)>0}))return true;
+ return num(s.openedQty)>1e-9||s.openedAt!=null;
+}
 function vlabel(v){return v?(product(v.productId)?.name||"未知商品")+" · "+v.name:"—"}
 function loc(zid){var z=zone(zid);return z?(freezer(z.freezerId)?.name||"未知冰柜")+" / "+z.name:"—"}
 function normalizeWeightInputText(el){
@@ -220,6 +223,26 @@ function zoneOptions(){
  var zs=state.zones.filter(function(z){return z.active!==false});
  return zs.length?zs.map(function(z){return '<option value="'+esc(z.id)+'">'+esc(loc(z.id))+'</option>'}).join(""):'<option value="">暂无区域，请先添加</option>';
 }
+function stockOptionsForVariant(vid){
+ var rows=stockRows().filter(function(s){var b=batch(s.batchId);return b&&b.variantId===vid}).slice().sort(function(a,b){
+  var ao=opened(a),bo=opened(b);
+  if(ao!==bo)return bo-ao;
+  return String(batch(a.batchId)?.received||"").localeCompare(String(batch(b.batchId)?.received||""));
+ });
+ return rows.length?rows.map(function(s){
+  var b=batch(s.batchId),v=b&&variant(b.variantId);
+  return '<option value="'+esc(s.id)+'">'+esc(vlabel(v))+' · '+esc(monthKey(b?.received))+' · '+esc(loc(s.zoneId))+' · '+esc(qtyText(s,v))+'</option>';
+ }).join(""):'<option value="">暂无该商品库存</option>';
+}
+function preferredZoneForVariant(vid){
+ var v=variant(vid);
+ if(v&&(v.targetZoneId||v.defaultZoneId)&&zone(v.targetZoneId||v.defaultZoneId))return v.targetZoneId||v.defaultZoneId;
+ var rows=stockRows().filter(function(s){var b=batch(s.batchId);return b&&b.variantId===vid});
+ rows.sort(function(a,b){
+  return String(batch(b.batchId)?.received||"").localeCompare(String(batch(a.batchId)?.received||""));
+ });
+ return rows.length?rows[0].zoneId:"";
+}
 function stockOptions(){
  var rows=stockRows().slice().sort(function(a,b){
   var ao=opened(a),bo=opened(b);
@@ -286,7 +309,7 @@ function renderDashboard(){
  $("#metrics").innerHTML=[["库存重量",fmt(grams)+" g"],["商品",state.products.length],["规格",state.variants.length],["低库存",low.length]].map(function(x){return '<div class="card"><div class="metric">'+esc(x[1])+'</div><div class="muted">'+esc(x[0])+'</div></div>'}).join("");
  renderTagSummary();
  $("#lowSummary").textContent=low.length?low.length+" 种需要补充":"无需补充";
- $("#lowStock").innerHTML=low.length?low.map(function(v){var cur=total(v.id),need=Math.max(0,num(v.minStock)-cur);return '<div class="item"><div class="row spread"><div><b class="low">⚠ '+esc(vlabel(v))+'</b><div class="muted">当前 '+fmt(cur)+' '+(v.mode==="weight"?"g":esc(v.unit||"件"))+' · 最低 '+fmt(v.minStock)+' '+(v.mode==="weight"?"g":esc(v.unit||"件"))+'</div></div><button class="secondary" data-action="receiveVariant" data-id="'+v.id+'">补货</button></div><div class="muted">建议至少补 '+fmt(need)+' '+(v.mode==="weight"?"g":esc(v.unit||"件"))+'</div></div>'}).join(""):"<div class='item'>✅ 当前没有低库存规格。</div>";
+ $("#lowStock").innerHTML=low.length?low.map(function(v){var cur=total(v.id),need=Math.max(0,num(v.minStock)-cur);return '<div class="item"><div class="row spread"><div><b class="low">⚠ '+esc(vlabel(v))+'</b><div class="muted">当前 '+fmt(cur)+' '+(v.mode==="weight"?"g":esc(v.unit||"件"))+' · 最低 '+fmt(v.minStock)+' '+(v.mode==="weight"?"g":esc(v.unit||"件"))+'</div></div><button class="secondary" data-action="receiveVariant" data-id="'+v.id+'" data-zone="'+esc(preferredZoneForVariant(v.id))+'">补货</button></div><div class="muted">建议至少补 '+fmt(need)+' '+(v.mode==="weight"?"g":esc(v.unit||"件"))+'</div></div>'}).join(""):"<div class='item'>✅ 当前没有低库存规格。</div>";
  $("#priority").innerHTML=op.length?op.slice(0,8).map(function(s){var v=variant(batch(s.batchId).variantId);return '<div class="item"><div class="row spread"><div><b>⭐ '+esc(vlabel(v))+'</b><div class="muted">'+esc(loc(s.zoneId))+' · '+esc(qtyText(s,v))+'</div></div><button class="secondary" data-action="useStock" data-id="'+s.id+'">优先取用</button></div></div>'}).join(""):"<div class='item'>暂无已开封库存。</div>";
 }
 function renderInventory(){
@@ -388,12 +411,23 @@ function closeModal(){try{$("#modal").close()}catch(e){$("#modal").removeAttribu
 function openDialog(kind,id,extra){
  if(kind==="product"||kind==="editProduct"){var p=id?product(id):null;openModal(p?"编辑商品":"新增商品",'<label>商品名称<input name="name" value="'+esc(p?.name||"")+'" required></label><label>分类<input name="category" value="'+esc(p?.category||"")+'"></label><label>标签（逗号分隔）<input name="tags" value="'+esc((p?.tags||[]).join(","))+'" placeholder="常用,早餐,肉类"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>',kind,id);return}
  if(kind==="variant"||kind==="editVariant"){var v=id?variant(id):null;openModal(v?"编辑规格":"新增规格",'<label>商品<select name="productId">'+state.products.map(function(p){return '<option value="'+p.id+'" '+(p.id===(v?.productId||extra)?"selected":"")+'>'+esc(p.name)+'</option>'}).join("")+'</select></label><label>规格名称<input name="name" value="'+esc(v?.name||"")+'" required></label><label>计量方式<select name="mode"><option value="weight" '+(v?.mode!=="count"?"selected":"")+'>按重量（g）</option><option value="count" '+(v?.mode==="count"?"selected":"")+'>按数量（盒/包/块等）</option></select></label><label>数量单位<input name="unit" value="'+esc(v?.unit||"盒")+'" placeholder="盒 / 包 / 块"></label><label>标准整包装重量（g，可选）<input name="packWeight" type="number" min="0" step="0.01" value="'+(v?.packWeight||"")+'"></label><label>最低库存<input name="minStock" type="number" min="0" step="0.01" value="'+(v?.minStock||0)+'"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>',kind,id);return}
- if(kind==="receive"||kind==="receiveVariant"){var pre=kind==="receiveVariant"?id:"",preZone=kind==="receiveVariant"?extra:"";openModal("入库",'<label>规格<select name="variant" required>'+variantOptions()+'</select></label><div id="receiveFields"></div><label>目标区域<select name="zone">'+zoneOptions()+'</select></label><label>日期<input name="date" type="date" value="'+today()+'"></label><label>备注<input name="note"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>确认入库</button></div>','receive');if(pre)$("#modalForm [name=variant]").value=pre;if(preZone&&zone(preZone))$("#modalForm [name=zone]").value=preZone;renderReceiveFields();if(!preZone&&pre){var dz=defaultTargetZoneForVariant(pre);if(dz&&zone(dz))$("#modalForm [name=zone]").value=dz;}$("#modalForm [name=variant]").addEventListener("change",function(){renderReceiveFields();var dz=defaultTargetZoneForVariant(this.value);if(dz&&zone(dz))$("#modalForm [name=zone]").value=dz;});return}
+ if(kind==="receive"||kind==="receiveVariant"){var pre=kind==="receiveVariant"?id:"",preZone=kind==="receiveVariant"?extra:"";openModal("入库",'<label>规格<select name="variant" required>'+variantOptions()+'</select></label><div id="receiveFields"></div><label>目标区域<select name="zone">'+zoneOptions()+'</select></label><label>日期<input name="date" type="date" value="'+today()+'"></label><label>备注<input name="note"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>确认入库</button></div>','receive');if(pre)$("#modalForm [name=variant]").value=pre;renderReceiveFields();if(preZone&&zone(preZone))$("#modalForm [name=zone]").value=preZone;else{var dz=preferredZoneForVariant($("#modalForm [name=variant]").value);if(dz&&zone(dz))$("#modalForm [name=zone]").value=dz;}$("#modalForm [name=variant]").addEventListener("change",function(){renderReceiveFields();var dz=preferredZoneForVariant(this.value);if(dz&&zone(dz))$("#modalForm [name=zone]").value=dz;});return}
  if(kind==="batchReceive"){openModal("批量入库",'<div class="muted">重量型填写每袋实际重量，支持 360g+20g+330g+230g+310g、300g x 4、1000*4,500 等格式；数量型允许小数。</div><div id="batchRows"></div><button type="button" class="secondary" id="addRow">＋ 添加一行</button><div class="actions"><button type="button" class="secondary cancel">取消</button><button>全部入库</button></div>','batchReceive');addBatchRow();$("#addRow").addEventListener("click",addBatchRow);return}
  if(kind==="batchUse"){openModal("批量取用",'<div class="muted">可同时取用多个库存批次；按开封优先规则处理。</div><div id="batchUseRows"></div><button type="button" class="secondary" id="addUseRow">＋ 添加一行</button><div class="actions"><button type="button" class="secondary cancel">取消</button><button>全部取用</button></div>','batchUse');addBatchUseRow();$("#addUseRow").addEventListener("click",addBatchUseRow);return}
  if(kind==="batchAdjust"){openModal("批量盘点",'<div class="muted">可同时盘点多个库存批次。重量型填写盘点后的每袋实际重量。</div><div id="batchAdjustRows"></div><button type="button" class="secondary" id="addAdjustRow">＋ 添加一行</button><div class="actions"><button type="button" class="secondary cancel">取消</button><button>全部保存</button></div>','batchAdjust');addBatchAdjustRow();$("#addAdjustRow").addEventListener("click",addBatchAdjustRow);return}
- if(kind==="use"||kind==="useStock"){openModal("取用 · 开封优先",'<label>库存<select name="stock">'+stockOptions()+'</select></label><div class="muted">批次按“同一商品/规格 + 同一年月”划分。</div><label>取用数量<input name="amount" type="number" min="0.01" step="0.01" value="100"></label><div id="useInfo" class="muted"></div><label>备注<input name="note"></label><div class="notice">数量型：部分取用后，剩余部分自动作为“已开封 / 优先使用”。</div><div class="actions"><button type="button" class="secondary cancel">取消</button><button>确认取用</button></div>','use');if(kind==="useStock")$("#modalForm [name=stock]").value=id;updateUseInfo();$("#modalForm [name=stock]").addEventListener("change",updateUseInfo);return}
- if(kind==="adjust"){openModal("库存盘点",'<label>库存<select name="stock">'+stockOptions()+'</select></label><div id="adjustFields"></div><label>备注<input name="note"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>','adjust');$("#modalForm [name=stock]").addEventListener("change",renderAdjustFields);renderAdjustFields();return}
+ if(kind==="use"||kind==="useStock"){openModal("取用 · 开封优先",'<label>库存<select name="stock">'+stockOptions()+'</select></label><div class="muted">批次按“同一商品/规格 + 同一年月”划分。</div><label>取用数量<input name="amount" type="number" min="0.01" step="0.01" value="1"></label><div id="useInfo" class="muted"></div><label>备注<input name="note"></label><div class="notice">数量型：部分取用后，剩余部分自动作为“已开封 / 优先使用”。</div><div class="actions"><button type="button" class="secondary cancel">取消</button><button>确认取用</button></div>','use');if(kind==="useStock")$("#modalForm [name=stock]").value=id;updateUseInfo();$("#modalForm [name=stock]").addEventListener("change",updateUseInfo);return}
+ if(kind==="adjust"){
+  var ps=id&&state.stock.find(function(x){return x.id===id}),pv=ps&&variant(batch(ps.batchId)?.variantId);
+  var stockHtml=pv?'<div class="notice"><b>商品 / 规格：</b>'+esc(vlabel(pv))+'<br><span class="muted">盘点对象已锁定为当前商品库存。</span></div><label>对应库存<select name="stock">'+stockOptionsForVariant(pv.id)+'</select></label>':'<label>商品 / 规格<select name="adjustVariant">'+variantOptions()+'</select></label><label>对应库存<select name="stock">'+stockOptions()+'</select></label>';
+  openModal("库存盘点",stockHtml+'<div id="adjustFields"></div><label>备注<input name="note"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>','adjust',id);
+  if(ps)$("#modalForm [name=stock]").value=id;
+  if(!pv){
+    var av=$("#modalForm [name=adjustVariant]"),as=$("#modalForm [name=stock]");
+    function refreshSingleAdjustStocks(){as.innerHTML=stockOptionsForVariant(av.value);}
+    av.addEventListener("change",function(){refreshSingleAdjustStocks();renderAdjustFields();});
+  }
+  $("#modalForm [name=stock]").addEventListener("change",renderAdjustFields);
+  renderAdjustFields();return}
  if(kind==="freezer"||kind==="editFreezer"){var f=id?freezer(id):null;openModal(f?"编辑冰柜":"新增冰柜",'<label>冰柜名称<input name="name" value="'+esc(f?.name||"")+'" required></label><label>备注<input name="notes" value="'+esc(f?.notes||"")+'"></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>',kind,id);return}
  if(kind==="editZone"){var z=zone(id);openModal("编辑区域",'<label>区域名称<input name="name" value="'+esc(z?.name||"")+'" required></label><div class="actions"><button type="button" class="secondary cancel">取消</button><button>保存</button></div>','editZone',id);return}
 }
@@ -404,14 +438,12 @@ function addBatchUseRow(){
 }
 function addBatchAdjustRow(){
  var box=$("#batchAdjustRows"),d=document.createElement("div");d.className="card";d.style.marginTop="8px";
- d.innerHTML='<label>商品<select name="adjustVariant[]">'+variantOptions()+'</select></label><label>对应库存<select name="adjustStock[]">'+stockOptions()+'</select></label><label>盘点后库存<input name="adjustQty[]" type="text" inputmode="text" autocomplete="off" placeholder="重量型：1000*4,500；数量型：10.5"></label><button type="button" class="ghost remove-row">删除</button>';
- var vs=d.querySelector('[name="adjustVariant[]"]'),ss=d.querySelector('[name="adjustStock[]"]');
- function refreshAdjustStocks(){
-  var vid=vs.value;
-  ss.innerHTML=(state.stock||[]).filter(function(st){var b=batch(st.batchId);return b&&b.variantId===vid}).map(function(st){var b=batch(st.batchId);return '<option value="'+st.id+'">'+esc(product(variant(vid)?.productId)?.name||"商品")+' · '+esc(variant(vid)?.name||"规格")+' · '+esc(zoneName(st.zoneId))+' · '+esc(monthKey(b.received))+'</option>'}).join("");
- }
- vs.addEventListener("change",refreshAdjustStocks);refreshAdjustStocks();
- box.appendChild(d);d.querySelector(".remove-row").onclick=function(){d.remove()};
+ d.innerHTML='<label>商品 / 规格<select name="adjustVariant[]">'+variantOptions()+'</select></label><label>对应库存<select name="adjustStock[]">'+stockOptionsForVariant(state.variants[0]?.id||"")+'</select></label><label>盘点后库存<input name="adjustQty[]" type="text" inputmode="text" autocomplete="off" placeholder="重量型：1000*4,500；数量型：10.5"></label><button type="button" class="ghost remove-row">删除</button>';
+ box.appendChild(d);
+ var av=d.querySelector('[name="adjustVariant[]"]'),as=d.querySelector('[name="adjustStock[]"]');
+ function refresh(){as.innerHTML=stockOptionsForVariant(av.value);}
+ av.addEventListener("change",refresh);refresh();
+ d.querySelector(".remove-row").onclick=function(){d.remove()};
 }
 function renderReceiveFields(){
  var v=variant($("#modalForm [name=variant]").value);if(!v)return;
@@ -532,8 +564,8 @@ function submit(e){
    var as=fd.getAll("adjustStock[]"),av=fd.getAll("adjustVariant[]"),aq=fd.getAll("adjustQty[]");if(!as.length)throw Error("请至少添加一行");
    as.forEach(function(sid,i){
     var st=state.stock.find(function(x){return x.id===sid}),vv=st&&variant(batch(st.batchId)?.variantId),raw=String(aq[i]||"").trim();
-    if(av[i]&&(!vv||vv.id!==av[i]))throw Error("盘点商品与库存不对应，请重新选择");
     if(!st||!vv||!raw)return;
+    if(av[i]&&vv.id!==av[i])throw Error("盘点商品与库存不对应，请重新选择");
     var before=qtyText(st,vv),target;
     if(vv.mode==="weight"){
      var wi=parseWeightList(raw);if(!wi.length)throw Error("请填写有效重量");
