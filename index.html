@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>家庭冷冻库存管理 V25</title>
+<title>家庭冷冻库存管理</title>
 <style>
 :root{--bg:#f4f7f5;--card:#fff;--ink:#17231f;--muted:#68756f;--line:#dce5e0;--green:#147a58;--red:#b62f3a;--amber:#a96500}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
@@ -25,6 +25,14 @@ dialog{width:min(700px,calc(100% - 18px));border:1px solid var(--line);border-ra
 
 #clearAllBtn,#resetBtn{min-width:150px} #clearAllBtn:active,#resetBtn:active{transform:scale(.98)}
 </style>
+
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#0f3d32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="冷冻库存管理">
+<link rel="apple-touch-icon" href="./icon-180.png">
+
 </head>
 <body>
 <header>
@@ -716,5 +724,16 @@ $("#ocrParse").addEventListener("click",parseOCR);$("#ocrImport").addEventListen
 render();
 })();
 </script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js").catch(function (err) {
+      console.error("Service worker registration failed:", err);
+    });
+  });
+}
+</script>
+
 </body>
 </html>
