@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>家庭冷冻库存管理 V51</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>家庭冷冻库存管理 V52</title>
 <style>
 :root{--bg:#f4f7f5;--card:#fff;--ink:#17231f;--muted:#68756f;--line:#dce5e0;--green:#147a58;--red:#b62f3a;--amber:#a96500}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
@@ -24,6 +24,14 @@ dialog{width:min(700px,calc(100% - 18px));border:1px solid var(--line);border-ra
 @media(max-width:760px){header{padding:12px}.wrap{grid-template-columns:1fr;padding:9px}.nav{display:flex;overflow:auto}.nav button{width:auto;white-space:nowrap}.grid{grid-template-columns:repeat(2,1fr)}.history-desktop{display:none}.history-mobile{display:block}.form2{grid-template-columns:1fr}.full{grid-column:auto}}
 
 #clearAllBtn,#resetBtn{min-width:150px} #clearAllBtn:active,#resetBtn:active{transform:scale(.98)}
+
+html, body {
+  touch-action: pan-x pan-y;
+  -ms-touch-action: pan-x pan-y;
+}
+input, textarea, select, button {
+  touch-action: manipulation;
+}
 </style>
 
 <link rel="manifest" href="./manifest.webmanifest">
@@ -101,7 +109,7 @@ dialog{width:min(700px,calc(100% - 18px));border:1px solid var(--line);border-ra
 <section id="settings" class="view">
 <div class="card"><h3>计量方式</h3><p class="muted">重量型：按 g 保存，可继续使用“整包 + 开封克数”。数量型：按盒、包、块、袋、瓶等保存，允许 0.5、1.5 等小数。部分取用后自动进入“已开封 / 优先使用”。</p></div>
 <div class="card" style="margin-top:12px"><h3>☁️ Google Drive 云同步</h3><div id="driveStatus" class="muted" style="margin-top:6px">未连接</div><div class="actions" style="flex-wrap:wrap;margin-top:10px"><button type="button" id="driveConnectBtn">连接 Google Drive</button><button type="button" class="secondary" id="driveUploadBtn">上传 / 同步</button><button type="button" class="secondary" id="driveDownloadBtn">从云端恢复</button><button type="button" class="secondary" id="driveDisconnectBtn">断开</button></div><label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="driveAutoSync" type="checkbox"> 数据修改后自动同步</label><div class="muted" style="margin-top:8px">同步整个冰柜库存数据到 Google Drive。数据仍保存在本机浏览器。首次连接需要 Google 授权。</div></div>
-<div class="card" style="margin-top:12px"><h3>版本信息</h3><div style="font-size:18px;font-weight:700">V51</div><div class="muted" style="margin-top:4px">家庭冷冻库存管理 · PWA Flat</div></div>
+<div class="card" style="margin-top:12px"><h3>版本信息</h3><div style="font-size:18px;font-weight:700">V52</div><div class="muted" style="margin-top:4px">家庭冷冻库存管理 · PWA Flat</div></div>
 <div class="card" style="margin-top:12px"><h3>数据管理</h3><div class="actions" style="flex-wrap:wrap"><button class="danger" id="clearAllBtn" type="button">清除所有数据</button><button class="secondary" id="resetBtn" type="button">恢复示例数据</button><button class="danger" id="clearStockBtn" type="button">一键清空库存</button></div><div class="muted" style="margin-top:8px">清除所有数据、恢复示例数据都需要两次确认。</div></div>
 </section>
 </main>
@@ -813,5 +821,18 @@ if ("serviceWorker" in navigator) {
 }
 </script>
 
+
+<script>
+(function preventPageZoom(){
+  function preventPinch(e){
+    if(e.touches && e.touches.length > 1) e.preventDefault();
+  }
+  document.addEventListener("touchstart", preventPinch, {passive:false});
+  document.addEventListener("touchmove", preventPinch, {passive:false});
+  document.addEventListener("gesturestart", function(e){e.preventDefault();}, {passive:false});
+  document.addEventListener("gesturechange", function(e){e.preventDefault();}, {passive:false});
+  document.addEventListener("gestureend", function(e){e.preventDefault();}, {passive:false});
+})();
+</script>
 </body>
 </html>
