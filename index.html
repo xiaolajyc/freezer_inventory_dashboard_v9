@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>家庭冷冻库存管理 V55</title>
+<title>家庭冷冻库存管理 V56</title>
 <style>
 :root{--bg:#f4f7f5;--card:#fff;--ink:#17231f;--muted:#68756f;--line:#dce5e0;--green:#147a58;--red:#b62f3a;--amber:#a96500}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
@@ -109,7 +109,7 @@ input, textarea, select, button {
 <section id="settings" class="view">
 <div class="card"><h3>计量方式</h3><p class="muted">重量型：按 g 保存，可继续使用“整包 + 开封克数”。数量型：按盒、包、块、袋、瓶等保存，允许 0.5、1.5 等小数。部分取用后自动进入“已开封 / 优先使用”。</p></div>
 <div class="card" style="margin-top:12px"><h3>☁️ Google Drive 云同步</h3><div id="driveStatus" class="muted" style="margin-top:6px">未连接</div><div class="actions" style="flex-wrap:wrap;margin-top:10px"><button type="button" id="driveConnectBtn">连接 Google Drive</button><button type="button" class="secondary" id="driveUploadBtn">上传 / 同步</button><button type="button" class="secondary" id="driveDownloadBtn">从云端恢复</button><button type="button" class="secondary" id="driveDisconnectBtn">断开</button></div><label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="driveAutoSync" type="checkbox"> 数据修改后自动同步</label><div class="muted" style="margin-top:8px">同步整个冰柜库存数据到 Google Drive。数据仍保存在本机浏览器。首次连接需要 Google 授权。</div></div>
-<div class="card" style="margin-top:12px"><h3>版本信息</h3><div style="font-size:18px;font-weight:700">V55</div><div class="muted" style="margin-top:4px">家庭冷冻库存管理 · PWA Flat</div></div>
+<div class="card" style="margin-top:12px"><h3>版本信息</h3><div style="font-size:18px;font-weight:700">V56</div><div class="muted" style="margin-top:4px">家庭冷冻库存管理 · PWA Flat</div></div>
 <div class="card" style="margin-top:12px"><h3>数据管理</h3><div class="actions" style="flex-wrap:wrap"><button class="danger" id="clearAllBtn" type="button">清除所有数据</button><button class="secondary" id="resetBtn" type="button">恢复示例数据</button><button class="danger" id="clearStockBtn" type="button">一键清空库存</button></div><div class="muted" style="margin-top:8px">清除所有数据、恢复示例数据都需要两次确认。</div></div>
 </section>
 </main>
@@ -282,13 +282,24 @@ function parseWeightList(raw){
 
 function bagItems(s,v){
  if(!s||!v||v.mode!=="weight")return [];
- if(Array.isArray(s.bagItems))return s.bagItems.map(function(x){return typeof x==="number"?{w:num(x),opened:false}:{w:num(x.w),opened:!!x.opened}}).filter(function(x){return x.w>0});
- var a=(s.bagWeights||[]).map(num).filter(function(x){return x>0}).map(function(w){return {w:w,opened:false}});
- if(s.openedAt!=null&&a.length&&num(s.openedQty)>0)a[a.length-1]={w:num(s.openedQty),opened:true};
+ if(Array.isArray(s.bagItems))return s.bagItems.map(function(x){
+   if(typeof x==="number")return {w:num(x),originalW:num(x),opened:false};
+   var w=num(x.w),ow=num(x.originalW||x.ow||x.w);
+   return {w:w,originalW:ow>0?ow:w,opened:!!x.opened};
+ }).filter(function(x){return x.w>0});
+ var a=(s.bagWeights||[]).map(num).filter(function(x){return x>0}).map(function(w){return {w:w,originalW:w,opened:false}});
+ if(s.openedAt!=null&&a.length&&num(s.openedQty)>0){
+   var oi=a.length-1;
+   var legacyOriginal=num(s.originalOpenedQty||s.originalWeight||v.packWeight);
+   a[oi]={w:num(s.openedQty),originalW:legacyOriginal>0?legacyOriginal:a[oi].w,opened:true};
+ }
  return a;
 }
 function saveBagItems(s,a){
- s.bagItems=(a||[]).map(function(x){return {w:num(x.w),opened:!!x.opened}}).filter(function(x){return x.w>0});
+ s.bagItems=(a||[]).map(function(x){
+   var w=num(x.w),ow=num(x.originalW||x.ow||x.w);
+   return {w:w,originalW:ow>0?ow:w,opened:!!x.opened};
+ }).filter(function(x){return x.w>0});
  s.bagWeights=s.bagItems.map(function(x){return x.w});
  s.sealedQty=s.bagItems.filter(function(x){return !x.opened}).length;
  var o=s.bagItems.find(function(x){return x.opened});s.openedQty=o?o.w:0;s.openedAt=o?now():null;
@@ -324,6 +335,19 @@ function zoneOptions(){
  var zs=state.zones.filter(function(z){return z.active!==false});
  return zs.length?zs.map(function(z){return '<option value="'+esc(z.id)+'">'+esc(loc(z.id))+'</option>'}).join(""):'<option value="">暂无区域，请先添加</option>';
 }
+function useStockText(s,v){
+ if(!s||!v)return "";
+ if(v.mode==="weight"){
+   var a=bagItems(s,v),parts=a.map(function(x){
+     var ow=num(x.originalW||x.w),w=num(x.w);
+     return x.opened
+       ? fmt(ow)+" g 原重 → "+fmt(w)+" g 剩余"
+       : fmt(ow)+" g 原重";
+   });
+   return parts.join(" + ")||"0 g";
+ }
+ return qtyText(s,v);
+}
 function stockOptionsForVariant(vid){
  var rows=stockRows().filter(function(s){var b=batch(s.batchId);return b&&b.variantId===vid}).slice().sort(function(a,b){
   var ao=opened(a),bo=opened(b);
@@ -332,7 +356,7 @@ function stockOptionsForVariant(vid){
  });
  return rows.length?rows.map(function(s){
   var b=batch(s.batchId),v=b&&variant(b.variantId);
-  return '<option value="'+esc(s.id)+'">'+esc(vlabel(v))+' · '+esc(monthKey(b?.received))+' · '+esc(loc(s.zoneId))+' · '+esc(qtyText(s,v))+(stockNoteText(s)?'<div class="muted" style="margin-top:6px">备注：'+esc(stockNoteText(s))+'</div>':"")+'</option>';
+  return '<option value="'+esc(s.id)+'">'+esc(vlabel(v))+' · '+esc(monthKey(b?.received))+' · '+esc(loc(s.zoneId))+' · '+esc(useStockText(s,v))+(stockNoteText(s)?'<div class="muted" style="margin-top:6px">备注：'+esc(stockNoteText(s))+'</div>':"")+'</option>';
  }).join(""):'<option value="">暂无该商品库存</option>';
 }
 function preferredZoneForVariant(vid){
@@ -352,7 +376,7 @@ function stockOptions(){
  });
  return rows.length?rows.map(function(s){
   var b=batch(s.batchId),v=b&&variant(b.variantId);
-  return '<option value="'+esc(s.id)+'">'+esc(vlabel(v))+' · 批次 '+esc(monthKey(b?.received))+' · '+esc(loc(s.zoneId))+' · '+esc(qtyText(s,v))+'</option>';
+  return '<option value="'+esc(s.id)+'">'+esc(vlabel(v))+' · 批次 '+esc(monthKey(b?.received))+' · '+esc(loc(s.zoneId))+' · '+esc(useStockText(s,v))+'</option>';
  }).join(""):'<option value="">暂无库存</option>';
 }
 
@@ -606,7 +630,7 @@ function submit(e){
     if(!raw)throw Error("请填写每袋实际重量，例如 1700,500,730,360");
     var weights=parseWeightList(raw);
     if(!weights.length)throw Error("请填写有效的每袋重量");
-    var ex=bagItems(st,vr);weights.forEach(function(w){ex.push({w:w,opened:false})});saveBagItems(st,ex);
+    var ex=bagItems(st,vr);weights.forEach(function(w){ex.push({w:w,originalW:w,opened:false})});saveBagItems(st,ex);
    }else{
     var q=Math.max(0,num(fd.get("countQty")));
     if(q<=0)throw Error("请输入入库数量");
@@ -631,7 +655,7 @@ function submit(e){
     var batchReceiveNote=String(fd.get("batchReceiveNote")||"").trim();
     if(batchReceiveNote)st.note=batchReceiveNote;
     if(vr.mode==="weight"){
-     var exb=bagItems(st,vr);parsedWeights.forEach(function(w){exb.push({w:w,opened:false});});saveBagItems(st,exb);
+     var exb=bagItems(st,vr);parsedWeights.forEach(function(w){exb.push({w:w,originalW:w,opened:false});});saveBagItems(st,exb);
     }else{
      var whole=Math.floor(q),frac=q-whole;
      st.sealedQty+=whole;
@@ -664,7 +688,7 @@ function submit(e){
     var before=qtyText(st,vv),target;
     if(vv.mode==="weight"){
      var wi=parseWeightList(raw);if(!wi.length)throw Error("请填写有效重量");
-     target=wi.reduce(function(a,b){return a+b},0);saveBagItems(st,wi.map(function(w){return {w:w,opened:false}}));
+     target=wi.reduce(function(a,b){return a+b},0);saveBagItems(st,wi.map(function(w){return {w:w,originalW:w,opened:false}}));
     }else{
      target=num(raw);if(target<0)throw Error("盘点数量不能小于 0");
      var whole=Math.floor(target),frac=target-whole;st.sealedQty=whole;st.openedQty=frac;st.openedAt=frac>1e-9?now():null;
@@ -684,7 +708,7 @@ function submit(e){
       target=wi.reduce(function(a,b){return a+b},0);
       if(!wi.length||target<0)throw Error("请输入有效重量");
       var oldTotal=bagItems(sa,va).reduce(function(a,b){return a+b.w},0);
-      saveBagItems(sa,wi.map(function(w){return {w:w,opened:false}}));
+      saveBagItems(sa,wi.map(function(w){return {w:w,originalW:w,opened:false}}));
       log("ADJUST","盘点",{variantId:va.id,batchId:sa.batchId,sourceZoneId:sa.zoneId,before:oldTotal,after:target,unit:"g",bagWeights:wi});
     }else{
       target=num(raw);
