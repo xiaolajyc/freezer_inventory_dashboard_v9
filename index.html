@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>家庭冷冻库存管理 V56</title>
+<title>家庭冷冻库存管理 V58</title>
 <style>
 :root{--bg:#f4f7f5;--card:#fff;--ink:#17231f;--muted:#68756f;--line:#dce5e0;--green:#147a58;--red:#b62f3a;--amber:#a96500}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
@@ -109,7 +109,7 @@ input, textarea, select, button {
 <section id="settings" class="view">
 <div class="card"><h3>计量方式</h3><p class="muted">重量型：按 g 保存，可继续使用“整包 + 开封克数”。数量型：按盒、包、块、袋、瓶等保存，允许 0.5、1.5 等小数。部分取用后自动进入“已开封 / 优先使用”。</p></div>
 <div class="card" style="margin-top:12px"><h3>☁️ Google Drive 云同步</h3><div id="driveStatus" class="muted" style="margin-top:6px">未连接</div><div class="actions" style="flex-wrap:wrap;margin-top:10px"><button type="button" id="driveConnectBtn">连接 Google Drive</button><button type="button" class="secondary" id="driveUploadBtn">上传 / 同步</button><button type="button" class="secondary" id="driveDownloadBtn">从云端恢复</button><button type="button" class="secondary" id="driveDisconnectBtn">断开</button></div><label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="driveAutoSync" type="checkbox"> 数据修改后自动同步</label><div class="muted" style="margin-top:8px">同步整个冰柜库存数据到 Google Drive。数据仍保存在本机浏览器。首次连接需要 Google 授权。</div></div>
-<div class="card" style="margin-top:12px"><h3>版本信息</h3><div style="font-size:18px;font-weight:700">V57</div><div class="muted" style="margin-top:4px">家庭冷冻库存管理 · PWA Flat</div></div>
+<div class="card" style="margin-top:12px"><h3>版本信息</h3><div style="font-size:18px;font-weight:700">V58</div><div class="muted" style="margin-top:4px">家庭冷冻库存管理 · PWA Flat</div></div>
 <div class="card" style="margin-top:12px"><h3>数据管理</h3><div class="actions" style="flex-wrap:wrap"><button class="danger" id="clearAllBtn" type="button">清除所有数据</button><button class="secondary" id="resetBtn" type="button">恢复示例数据</button><button class="danger" id="clearStockBtn" type="button">一键清空库存</button></div><div class="muted" style="margin-top:8px">清除所有数据、恢复示例数据都需要两次确认。</div></div>
 </section>
 </main>
@@ -280,25 +280,66 @@ function parseWeightList(raw){
  return out;
 }
 
+function inferOriginalWeightFromTransactions(s,v,currentW){
+ var tx=Array.isArray(state.transactions)?state.transactions.slice():[];
+ tx=tx.filter(function(t){
+   return t&&t.batchId===s.batchId&&t.variantId===v.id&&
+     (!t.sourceZoneId||t.sourceZoneId===s.zoneId)&&
+     /取用/.test(String(t.operation||""))&&String(t.unit||"")==="g"&&
+     t.before!=null&&t.after!=null&&num(t.quantity)>0;
+ });
+ tx.sort(function(a,b){return String(a.time||"").localeCompare(String(b.time||""))});
+ function openedW(text){
+   var m=String(text||"").match(/([0-9]+(?:\.[0-9]+)?)\s*g\s*开封/g)||[];
+   return m.reduce(function(sum,x){var n=x.match(/[0-9]+(?:\.[0-9]+)?/);return sum+(n?num(n[0]):0)},0);
+ }
+ function sealedN(text){
+   var m=String(text||"").match(/([0-9]+(?:\.[0-9]+)?)\s*袋/);
+   return m?num(m[1]):0;
+ }
+ var inferred=0;
+ tx.forEach(function(t){
+   var bo=openedW(t.before),ao=openedW(t.after);
+   var bc=sealedN(t.before),ac=sealedN(t.after);
+   // A sealed bag became the opened remainder. In that event:
+   // original = amount taken from that bag + its remaining weight.
+   // If there was already an opened bag, subtract its pre-existing remainder.
+   if(ao>0&&bc-ac===1){
+     var candidate=bo>0?num(t.quantity)-bo+ao:num(t.quantity)+ao;
+     if(candidate>currentW+1e-9&&candidate>=ao)inferred=candidate;
+   }
+ });
+ return inferred;
+}
 function bagItems(s,v){
  if(!s||!v||v.mode!=="weight")return [];
  if(Array.isArray(s.bagItems))return s.bagItems.map(function(x){
    if(typeof x==="number")return {w:num(x),originalW:num(x),opened:false};
-   var w=num(x.w),ow=num(x.originalW||x.ow||x.w);
-   return {w:w,originalW:ow>0?ow:w,opened:!!x.opened};
+   var w=num(x.w),isOpen=!!x.opened,ow=num(x.originalW||x.ow);
+   if(isOpen&&ow<=w+1e-9){
+     var fromHistory=inferOriginalWeightFromTransactions(s,v,w);
+     if(fromHistory>w)ow=fromHistory;
+     else if(num(v.packWeight)>w)ow=num(v.packWeight);
+     else ow=0;
+   }else if(!isOpen&&ow<=0){ow=w}
+   return {w:w,originalW:ow,opened:isOpen};
  }).filter(function(x){return x.w>0});
  var a=(s.bagWeights||[]).map(num).filter(function(x){return x>0}).map(function(w){return {w:w,originalW:w,opened:false}});
  if(s.openedAt!=null&&a.length&&num(s.openedQty)>0){
-   var oi=a.length-1;
-   var legacyOriginal=num(s.originalOpenedQty||s.originalWeight||v.packWeight);
-   a[oi]={w:num(s.openedQty),originalW:legacyOriginal>0?legacyOriginal:a[oi].w,opened:true};
+   var oi=a.length-1,ow=num(s.originalOpenedQty||s.originalWeight);
+   if(ow<=num(s.openedQty)+1e-9){
+     ow=inferOriginalWeightFromTransactions(s,v,num(s.openedQty));
+     if(ow<=num(s.openedQty)+1e-9&&num(v.packWeight)>num(s.openedQty))ow=num(v.packWeight);
+   }
+   a[oi]={w:num(s.openedQty),originalW:ow>num(s.openedQty)?ow:0,opened:true};
  }
  return a;
 }
 function saveBagItems(s,a){
  s.bagItems=(a||[]).map(function(x){
-   var w=num(x.w),ow=num(x.originalW||x.ow||x.w);
-   return {w:w,originalW:ow>0?ow:w,opened:!!x.opened};
+   var w=num(x.w),isOpen=!!x.opened,ow=num(x.originalW||x.ow);
+   if(ow<=0&&!isOpen)ow=w;
+   return {w:w,originalW:ow,opened:isOpen};
  }).filter(function(x){return x.w>0});
  s.bagWeights=s.bagItems.map(function(x){return x.w});
  s.sealedQty=s.bagItems.filter(function(x){return !x.opened}).length;
@@ -342,7 +383,7 @@ function inventoryQtyText(s,v){
    a.forEach(function(x){
      var ow=num(x.originalW||x.w),w=num(x.w);
      if(x.opened){
-       parts.push(fmt(ow)+" g 原重 → "+fmt(w)+" g 开封");
+       parts.push((ow>w?fmt(ow)+" g 原重":"原重未记录")+" → "+fmt(w)+" g 开封");
      }else{
        parts.push(fmt(ow)+" g 原重");
      }
@@ -357,7 +398,7 @@ function useStockText(s,v){
    var a=bagItems(s,v),parts=a.map(function(x){
      var ow=num(x.originalW||x.w),w=num(x.w);
      return x.opened
-       ? fmt(ow)+" g 原重 → "+fmt(w)+" g 剩余"
+       ? (ow>w?fmt(ow)+" g 原重":"原重未记录")+" → "+fmt(w)+" g 剩余"
        : fmt(ow)+" g 原重";
    });
    return parts.join(" + ")||"0 g";
@@ -604,7 +645,7 @@ function consume(s,v,requested){
   while(requested>1e-9&&a.length){
    var idx=-1,best=Infinity;
    for(var i=0;i<a.length;i++)if(!a[i].opened&&a[i].w+1e-9>=requested&&a[i].w<best){idx=i;best=a[i].w}
-   if(idx>=0){var w=a[idx].w;if(requested<w-1e-9)a[idx]={w:w-requested,opened:true};else a.splice(idx,1);requested=0;break;}
+   if(idx>=0){var w=a[idx].w,originalW=num(a[idx].originalW||w);if(requested<w-1e-9)a[idx]={w:w-requested,originalW:originalW,opened:true};else a.splice(idx,1);requested=0;break;}
    var mi=0;for(var j=1;j<a.length;j++)if(a[j].w<a[mi].w)mi=j;requested-=a[mi].w;a.splice(mi,1);
   }
   saveBagItems(s,a);return true;
