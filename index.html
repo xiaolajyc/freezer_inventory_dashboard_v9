@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>家庭冷冻库存管理 V58</title>
+<title>家庭冷冻库存管理 V59</title>
 <style>
 :root{--bg:#f4f7f5;--card:#fff;--ink:#17231f;--muted:#68756f;--line:#dce5e0;--green:#147a58;--red:#b62f3a;--amber:#a96500}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui,-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif}
@@ -32,6 +32,32 @@ html, body {
 input, textarea, select, button {
   touch-action: manipulation;
 }
+
+.inventory-hint{margin:-4px 0 10px;padding:0 2px;line-height:1.45}
+.inventory-product{padding:12px;margin-bottom:10px}
+.inventory-product-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.inventory-product-head b{font-size:17px}
+.inventory-product-total{font-size:19px;font-weight:800;margin-top:4px;line-height:1.35}
+.inventory-open-summary{margin-top:3px;line-height:1.45}
+.inventory-variant{padding:8px 0 2px;margin-top:8px}
+.inventory-variant-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.inventory-location{margin-top:2px;line-height:1.45;overflow-wrap:anywhere}
+.inventory-batch{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);min-width:0}
+.inventory-batch-detail{display:flex;flex-direction:column;gap:3px;line-height:1.5;font-size:13px;overflow-wrap:anywhere}
+.batch-month{font-weight:700;color:var(--ink)}
+.inventory-note{display:flex;gap:8px;align-items:flex-start;margin-top:6px;padding:7px 9px;background:#f4f7f5;border-radius:7px;font-size:13px;line-height:1.45;min-width:0}
+.inventory-note b{flex:0 0 auto}
+.inventory-note span{min-width:0;overflow-wrap:anywhere}
+.inventory-actions{justify-content:flex-end;margin-top:8px}
+.drive-status{white-space:pre-line;overflow-wrap:anywhere;line-height:1.55;margin-top:8px;padding:10px 12px;border-radius:8px;background:var(--bg);min-width:0}
+.drive-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.drive-actions button{width:100%;min-width:0;padding:10px 8px}
+.drive-auto-sync{display:flex!important;align-items:center;gap:10px;margin-top:14px;padding:8px 0;font-size:14px;font-weight:500;width:100%;min-width:0}
+.drive-auto-sync input[type="checkbox"]{width:20px!important;height:20px;min-width:20px;flex:0 0 20px;margin:0;padding:0}
+.drive-auto-sync span{display:block;flex:1;min-width:0;overflow-wrap:anywhere}
+.drive-help{margin-top:8px;line-height:1.5;overflow-wrap:anywhere}
+@media(min-width:761px){.drive-actions{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:420px){.inventory-product-total{font-size:18px}.inventory-actions button{padding:8px 10px}.inventory-location,.inventory-batch-detail{font-size:12px}}
 </style>
 
 <link rel="manifest" href="./manifest.webmanifest">
@@ -73,7 +99,7 @@ input, textarea, select, button {
 </section>
 
 <section id="inventory" class="view">
-<div class="row spread"><h2>我的库存</h2><input id="search" style="max-width:360px" placeholder="搜索商品、规格、冰柜或区域"></div>
+<div class="row spread"><h2>我的库存</h2><input id="search" style="max-width:360px" placeholder="搜索商品、规格、冰柜或区域"></div><div class="muted inventory-hint">按商品汇总总量；规格、区域和批次分别记录。</div>
 <div id="inventoryList"></div>
 </section>
 
@@ -108,8 +134,8 @@ input, textarea, select, button {
 
 <section id="settings" class="view">
 <div class="card"><h3>计量方式</h3><p class="muted">重量型：按 g 保存，可继续使用“整包 + 开封克数”。数量型：按盒、包、块、袋、瓶等保存，允许 0.5、1.5 等小数。部分取用后自动进入“已开封 / 优先使用”。</p></div>
-<div class="card" style="margin-top:12px"><h3>☁️ Google Drive 云同步</h3><div id="driveStatus" class="muted" style="margin-top:6px">未连接</div><div class="actions" style="flex-wrap:wrap;margin-top:10px"><button type="button" id="driveConnectBtn">连接 Google Drive</button><button type="button" class="secondary" id="driveUploadBtn">上传 / 同步</button><button type="button" class="secondary" id="driveDownloadBtn">从云端恢复</button><button type="button" class="secondary" id="driveDisconnectBtn">断开</button></div><label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="driveAutoSync" type="checkbox"> 数据修改后自动同步</label><div class="muted" style="margin-top:8px">同步整个冰柜库存数据到 Google Drive。数据仍保存在本机浏览器。首次连接需要 Google 授权。</div></div>
-<div class="card" style="margin-top:12px"><h3>版本信息</h3><div style="font-size:18px;font-weight:700">V58</div><div class="muted" style="margin-top:4px">家庭冷冻库存管理 · PWA Flat</div></div>
+<div class="card drive-card" style="margin-top:12px"><h3>☁️ Google Drive 云同步</h3><div id="driveStatus" class="drive-status muted" role="status" aria-live="polite">当前设备状态：未连接\n最近成功同步：暂无记录</div><div class="drive-actions"><button type="button" id="driveConnectBtn">连接 Google Drive</button><button type="button" class="secondary" id="driveUploadBtn">上传 / 同步</button><button type="button" class="secondary" id="driveDownloadBtn">从云端恢复</button><button type="button" class="secondary" id="driveDisconnectBtn">断开</button></div><label class="drive-auto-sync"><input id="driveAutoSync" type="checkbox"><span>数据修改后自动同步</span></label><div class="muted drive-help">同步整个冰柜库存数据到 Google Drive。数据仍保存在本机浏览器。首次连接需要 Google 授权；本设备未连接时，修改不会自动上传。</div></div>
+<div class="card" style="margin-top:12px"><h3>版本信息</h3><div style="font-size:18px;font-weight:700">V59</div><div class="muted" style="margin-top:4px">家庭冷冻库存管理 · PWA Flat</div></div>
 <div class="card" style="margin-top:12px"><h3>数据管理</h3><div class="actions" style="flex-wrap:wrap"><button class="danger" id="clearAllBtn" type="button">清除所有数据</button><button class="secondary" id="resetBtn" type="button">恢复示例数据</button><button class="danger" id="clearStockBtn" type="button">一键清空库存</button></div><div class="muted" style="margin-top:8px">清除所有数据、恢复示例数据都需要两次确认。</div></div>
 </section>
 </main>
@@ -206,14 +232,23 @@ async function driveFetch(url,options){
  if(!r.ok){var msg='HTTP '+r.status;try{var e=await r.json();msg=e.error?.message||msg}catch(_){}throw new Error(msg)}
  return r;
 }
-function drivePayload(){return {schema:'freezer-inventory-sync-v1',appVersion:'V46',updatedAt:new Date().toISOString(),state:state}}
+function drivePayload(){return {schema:'freezer-inventory-sync-v1',appVersion:'V59',updatedAt:new Date().toISOString(),state:state}}
 async function driveFindFile(){
  var q=`name='${DRIVE_FILE_NAME}' and trashed=false`;
  var url='https://www.googleapis.com/drive/v3/files?'+new URLSearchParams({q:q,spaces:'drive',fields:'files(id,name,modifiedTime,size)',pageSize:'10'});
  var r=await driveFetch(url,{interactive:false}),data=await r.json();driveFileId=data.files?.[0]?.id||null;return data.files?.[0]||null;
 }
 function driveSetStatus(text,type){var el=document.getElementById('driveStatus');if(!el)return;el.textContent=text;el.style.color=type==='error'?'#b42318':type==='ok'?'#18794e':''}
-function driveStatusText(){var st=driveSettings();if(driveTokenValid())return driveFileId?'已连接 · 云端文件已关联':'已连接';if(st.driveLastSyncAt)return '未连接 · 上次同步：'+new Date(st.driveLastSyncAt).toLocaleString();return '未连接'}
+function driveStatusText(){
+ var st=driveSettings();
+ var current=driveTokenValid()
+   ? (driveFileId?"连接状态：已连接 · 云端文件已关联":"连接状态：已连接 · 云端文件尚未关联")
+   : "连接状态：当前设备未连接";
+ var last=st.driveLastSyncAt
+   ? "最近成功同步 / 恢复："+new Date(st.driveLastSyncAt).toLocaleString()
+   : "最近成功同步 / 恢复：暂无记录";
+ return current+"\\n"+last;
+}
 async function driveConnect(){
  if(driveBusy)return;driveBusy=true;driveSetStatus('正在连接 Google Drive…');
  try{await driveGetToken(true);var f=await driveFindFile();driveFileId=f?.id||null;driveSetStatus(f?'已连接 · 云端文件已关联':'已连接 · 云端尚未创建同步文件','ok');renderDriveSettings()}
@@ -232,7 +267,7 @@ async function driveDownload(){
  try{var f=await driveFindFile();if(!f){driveSetStatus('云端还没有同步文件','error');alert('Google Drive 中还没有冰柜同步文件，请先在一台设备点击“上传 / 同步”。');return}driveFileId=f.id;var r=await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(driveFileId)+'?alt=media',{interactive:true});var data=await r.json();if(data.schema!=='freezer-inventory-sync-v1'||!data.state||!Array.isArray(data.state.products)||!Array.isArray(data.state.stock))throw new Error('云端文件格式不正确');if(!confirm('将用 Google Drive 中的数据覆盖本机冰柜库存数据吗？')){driveSetStatus('已连接 · 未覆盖本机数据','ok');return}window.__driveApplying=true;state=data.state;state.settings=state.settings||{};state.settings.driveLastSyncAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));window.__driveApplying=false;render();driveSetStatus('已从 Google Drive 恢复 · '+new Date(state.settings.driveLastSyncAt).toLocaleString(),'ok');renderDriveSettings();alert('云端数据已恢复到本机')}
  catch(e){window.__driveApplying=false;driveSetStatus('恢复失败：'+(e.message||e),'error');alert('Google Drive 恢复失败：'+(e.message||e))}finally{driveBusy=false}
 }
-function driveDisconnect(){driveToken=null;driveTokenExpiresAt=0;driveFileId=null;driveSetStatus('未连接');renderDriveSettings()}
+function driveDisconnect(){driveToken=null;driveTokenExpiresAt=0;driveFileId=null;localStorage.removeItem('freezerDriveConnected');driveSetStatus('当前设备状态：未连接');renderDriveSettings()}
 function driveScheduleAutoSync(){var st=driveSettings();if(!st.driveAutoSync||window.__driveApplying)return;clearTimeout(driveAutoTimer);driveAutoTimer=setTimeout(function(){if(driveTokenValid()&&driveFileId)driveUpload(false,false)},1500)}
 function renderDriveSettings(){var cb=$('#driveAutoSync');if(cb)cb.checked=!!driveSettings().driveAutoSync;var el=$('#driveStatus');if(el&&!driveBusy)el.textContent=driveStatusText()}
 function product(id){return state.products.find(function(x){return x.id===id})}
@@ -379,18 +414,24 @@ function zoneOptions(){
 function inventoryQtyText(s,v){
  if(!s||!v)return "";
  if(v.mode==="weight"){
-   var a=bagItems(s,v),t=a.reduce(function(x,y){return x+y.w},0),parts=[];
-   a.forEach(function(x){
-     var ow=num(x.originalW||x.w),w=num(x.w);
-     if(x.opened){
-       parts.push((ow>w?fmt(ow)+" g 原重":"原重未记录")+" → "+fmt(w)+" g 开封");
-     }else{
-       parts.push(fmt(ow)+" g 原重");
-     }
+   var a=bagItems(s,v),t=a.reduce(function(x,y){return x+y.w},0);
+   var sealedGroups={};
+   a.filter(function(x){return !x.opened}).forEach(function(x){
+     var w=num(x.w),key=String(w);
+     sealedGroups[key]=(sealedGroups[key]||0)+1;
    });
-   return (parts.join(" + ")||"0 袋")+" · 当前总计 "+fmt(t)+" g";
+   var parts=[];
+   Object.keys(sealedGroups).sort(function(a,b){return num(b)-num(a)}).forEach(function(k){
+     parts.push("未开封 "+fmt(num(k))+" g × "+sealedGroups[k]);
+   });
+   a.filter(function(x){return x.opened}).forEach(function(x){
+     var w=num(x.w),ow=num(x.originalW);
+     parts.push("开封袋："+(ow>w?fmt(ow)+" g 原重":"原重未记录")+" → "+fmt(w)+" g 剩余");
+   });
+   return (parts.join("；")||"无袋装库存")+" · 本批次现存 "+fmt(t)+" g";
  }
- return qtyText(s,v);
+ var q=num(s.sealedQty)+num(s.openedQty);
+ return "现存 "+fmt(q)+" "+(v.unit||"件")+(num(s.openedQty)>0?" · 开封剩余 "+fmt(s.openedQty)+" "+(v.unit||"件"):"");
 }
 function useStockText(s,v){
  if(!s||!v)return "";
@@ -413,7 +454,7 @@ function stockOptionsForVariant(vid){
  });
  return rows.length?rows.map(function(s){
   var b=batch(s.batchId),v=b&&variant(b.variantId);
-  return '<option value="'+esc(s.id)+'">'+esc(vlabel(v))+' · '+esc(monthKey(b?.received))+' · '+esc(loc(s.zoneId))+' · '+esc(useStockText(s,v))+(stockNoteText(s)?'<div class="muted" style="margin-top:6px">备注：'+esc(stockNoteText(s))+'</div>':"")+'</option>';
+  return '<option value="'+esc(s.id)+'">'+esc(vlabel(v))+' · '+esc(monthKey(b?.received))+' · '+esc(loc(s.zoneId))+' · '+esc(useStockText(s,v))+(stockNoteText(s)?" · 备注："+esc(stockNoteText(s)):"")+'</option>';
  }).join(""):'<option value="">暂无该商品库存</option>';
 }
 function preferredZoneForVariant(vid){
@@ -497,20 +538,81 @@ function renderDashboard(){
 }
 function renderInventory(){
  var q=($("#search")?.value||"").trim().toLowerCase();
- var rs=stockRows().filter(function(s){var v=variant(batch(s.batchId)?.variantId),p=product(v?.productId);return !q||((p?.name||"")+" "+(v?.name||"")+" "+loc(s.zoneId)+" "+(batch(s.batchId)?.received||"")).toLowerCase().indexOf(q)>=0;});
+ var rs=stockRows().filter(function(s){
+   var v=variant(batch(s.batchId)?.variantId),p=product(v?.productId);
+   return !q||((p?.name||"")+" "+(v?.name||"")+" "+loc(s.zoneId)+" "+(batch(s.batchId)?.received||"")).toLowerCase().indexOf(q)>=0;
+ });
  var groups={};
- rs.forEach(function(s){var b=batch(s.batchId),v=variant(b?.variantId),p=product(v?.productId);if(!v||!p)return;var key=p.id;if(!groups[key])groups[key]={p:p,rows:[]};groups[key].rows.push(s);});
- var arr=Object.values(groups).sort(function(a,b){var aw=a.rows.some(opened),bw=b.rows.some(opened);return (bw-aw)||(a.p.name||"").localeCompare(b.p.name||"");});
+ rs.forEach(function(s){
+   var b=batch(s.batchId),v=variant(b?.variantId),p=product(v?.productId);
+   if(!v||!p)return;
+   var key=p.id;if(!groups[key])groups[key]={p:p,rows:[]};groups[key].rows.push(s);
+ });
+ var arr=Object.values(groups).sort(function(a,b){
+   return (b.rows.some(opened)-a.rows.some(opened))||(a.p.name||"").localeCompare(b.p.name||"");
+ });
  $("#inventoryList").innerHTML=arr.length?arr.map(function(g){
    var productWeight=0,productBags=0,productCount=0,productOpenedWeight=0,productOpenedCount=0;
-   g.rows.forEach(function(s){var v=variant(batch(s.batchId)?.variantId);if(v.mode==="weight"){var bi=bagItems(s,v);productBags+=bi.length;productWeight+=bi.reduce(function(a,x){return a+x.w},0);productOpenedWeight+=bi.filter(function(x){return x.opened}).reduce(function(a,x){return a+x.w},0);}else{productCount+=num(s.sealedQty)+num(s.openedQty);productOpenedCount+=num(s.openedQty);}});
-   var variants={};g.rows.forEach(function(s){var b=batch(s.batchId),v=variant(b.variantId),key=v.id+"|"+s.zoneId;if(!variants[key])variants[key]={v:v,zoneId:s.zoneId,rows:[]};variants[key].rows.push(s);});
-   var sub=Object.values(variants).sort(function(a,b){return (b.rows.some(opened)-a.rows.some(opened))||(a.v.name||"").localeCompare(b.v.name||"")||loc(a.zoneId).localeCompare(loc(b.zoneId));}).map(function(x){var v=x.v;var bags=v.mode==="weight"?x.rows.reduce(function(a,s){return a.concat(bagItems(s,v))},[]):[];var sealed=v.mode==="weight"?bags.filter(function(z){return !z.opened}).length:x.rows.reduce(function(n,s){return n+num(s.sealedQty)},0);var openedQty=v.mode==="weight"?bags.filter(function(z){return z.opened}).reduce(function(a,z){return a+z.w},0):x.rows.reduce(function(n,s){return n+num(s.openedQty)},0);var variantTotal=v.mode==="weight"?bags.reduce(function(a,z){return a+z.w},0):sealed+openedQty;return '<div class="group-sub"><div class="row spread"><div><b>'+esc(v.name)+'</b><div class="muted">'+esc(loc(x.zoneId))+' · '+(v.mode==="weight"?esc(fmt(sealed))+" 包"+(openedQty>0?" + "+esc(fmt(openedQty))+" g 开封":"")+" · 总计 "+esc(fmt(variantTotal))+" g":esc(fmt(variantTotal))+" "+esc(v.unit||"件"))+'</div></div><span class="badge">'+(openedQty>0?"⭐ 开封":"未开封")+'</span></div>'+x.rows.sort(function(a,b){return opened(b)-opened(a)}).map(function(s){var b=batch(s.batchId);return '<div class="muted" style="margin-top:5px">批次 '+esc(monthKey(b.received))+' · '+esc(inventoryQtyText(s,v))+'</div>'+(stockNoteText(s)?'<div class="muted" style="margin-top:4px;padding:7px 9px;background:var(--soft,#f4f6f8);border-radius:8px"><b>备注：</b>'+esc(stockNoteText(s))+'</div>':"")+'<div class="row" style="justify-content:flex-end;margin-top:6px"><button class="secondary" data-action="adjustStock" data-id="'+s.id+'">盘点</button><button data-action="receiveVariant" data-id="'+v.id+'" data-zone="'+esc(x.zoneId)+'">入库</button><button class="secondary" data-action="useStock" data-id="'+s.id+'">取用</button></div>';}).join('')+'</div>';}).join('');
-   var summary=[];if(productBags)summary.push(fmt(productBags)+" 包");if(productWeight)summary.push(fmt(productWeight)+" g");if(productCount)summary.push(fmt(productCount)+" 件");
-   return '<div class="group-card"><div class="row spread" style="margin:0"><div><b>'+esc(g.p.name)+'</b><div class="muted">同一商品总计；不同规格分别管理</div><div style="font-size:19px;font-weight:800;margin-top:4px">'+esc(summary.join(" · ")||"0")+'</div><div class="muted">已开封：'+(productOpenedWeight?esc(fmt(productOpenedWeight))+" g":"0 g")+(productOpenedCount?" · "+esc(fmt(productOpenedCount))+" 件":"")+'</div></div><span class="badge">'+(g.rows.some(opened)?"⭐ 有开封":"未开封")+'</span></div>'+sub+'</div>';
+   g.rows.forEach(function(s){
+     var v=variant(batch(s.batchId)?.variantId);
+     if(v.mode==="weight"){
+       var bi=bagItems(s,v);productBags+=bi.length;
+       productWeight+=bi.reduce(function(a,x){return a+x.w},0);
+       productOpenedWeight+=bi.filter(function(x){return x.opened}).reduce(function(a,x){return a+x.w},0);
+     }else{
+       productCount+=num(s.sealedQty)+num(s.openedQty);
+       productOpenedCount+=num(s.openedQty);
+     }
+   });
+   var variants={};
+   g.rows.forEach(function(s){
+     var b=batch(s.batchId),v=variant(b.variantId),key=v.id+"|"+s.zoneId;
+     if(!variants[key])variants[key]={v:v,zoneId:s.zoneId,rows:[]};
+     variants[key].rows.push(s);
+   });
+   var sub=Object.values(variants).sort(function(a,b){
+     return (b.rows.some(opened)-a.rows.some(opened))||
+       (a.v.name||"").localeCompare(b.v.name||"")||
+       loc(a.zoneId).localeCompare(loc(b.zoneId));
+   }).map(function(x){
+     var v=x.v;
+     var bags=v.mode==="weight"?x.rows.reduce(function(a,s){return a.concat(bagItems(s,v))},[]):[];
+     var sealed=v.mode==="weight"?bags.filter(function(z){return !z.opened}).length:
+       x.rows.reduce(function(n,s){return n+num(s.sealedQty)},0);
+     var openedQty=v.mode==="weight"?bags.filter(function(z){return z.opened}).reduce(function(a,z){return a+z.w},0):
+       x.rows.reduce(function(n,s){return n+num(s.openedQty)},0);
+     var zoneSummary=v.mode==="weight"
+       ? (sealed?"未开封 "+fmt(sealed)+" 袋":"")+(sealed&&openedQty>0?" · ":"")+(openedQty>0?"开封剩余 "+fmt(openedQty)+" g":"")
+       : "现存 "+fmt(sealed+openedQty)+" "+(v.unit||"件")+(openedQty>0?" · 开封剩余 "+fmt(openedQty)+" "+(v.unit||"件"):"");
+     return '<div class="group-sub inventory-variant">'+
+       '<div class="inventory-variant-head"><div><b>'+esc(v.name)+'</b><div class="muted inventory-location">'+esc(loc(x.zoneId))+' · '+esc(zoneSummary)+'</div></div></div>'+
+       x.rows.slice().sort(function(a,b){return opened(b)-opened(a)||String(batch(b.batchId)?.received||"").localeCompare(String(batch(a.batchId)?.received||""));}).map(function(s){
+         var b=batch(s.batchId);
+         return '<div class="inventory-batch">'+
+           '<div class="inventory-batch-detail"><span class="batch-month">批次 '+esc(monthKey(b.received))+'</span><span>'+esc(inventoryQtyText(s,v))+'</span></div>'+
+           (stockNoteText(s)?'<div class="inventory-note"><b>备注</b><span>'+esc(stockNoteText(s))+'</span></div>':"")+
+           '<div class="row inventory-actions"><button class="secondary" data-action="adjustStock" data-id="'+s.id+'">盘点</button><button data-action="receiveVariant" data-id="'+v.id+'" data-zone="'+esc(x.zoneId)+'">入库</button><button class="secondary" data-action="useStock" data-id="'+s.id+'">取用</button></div>'+
+         '</div>';
+       }).join('')+
+     '</div>';
+   }).join('');
+   var summary=[];
+   if(productBags)summary.push(fmt(productBags)+" 袋");
+   if(productWeight)summary.push(fmt(productWeight)+" g");
+   if(productCount)summary.push(fmt(productCount)+" "+(g.rows.map(function(s){return variant(batch(s.batchId)?.variantId)}).find(function(v){return v&&v.mode!=="weight"})?.unit||"件"));
+   var opens=[];
+   if(productOpenedWeight>0)opens.push("开封剩余 "+fmt(productOpenedWeight)+" g");
+   if(productOpenedCount>0){
+     var ov=g.rows.map(function(s){return variant(batch(s.batchId)?.variantId)}).find(function(v){return v&&v.mode!=="weight"});
+     opens.push("开封剩余 "+fmt(productOpenedCount)+" "+(ov?.unit||"件"));
+   }
+   return '<div class="group-card inventory-product">'+
+     '<div class="inventory-product-head"><div><b>'+esc(g.p.name)+'</b>'+
+     '<div class="inventory-product-total">'+esc(summary.join(" · ")||"0")+'</div>'+
+     (opens.length?'<div class="muted inventory-open-summary">'+esc(opens.join(" · "))+'</div>':"")+
+     '</div></div>'+sub+'</div>';
  }).join(""):"<div class='item'>暂无库存。</div>";
 }
-
 function renderProducts(){
  var q=String($("#productSearch")?.value||"").trim().toLowerCase();
  var products=state.products.filter(function(p){
