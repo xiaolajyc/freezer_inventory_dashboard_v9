@@ -58,6 +58,8 @@ input, textarea, select, button {
 .drive-help{margin-top:8px;line-height:1.5;overflow-wrap:anywhere}
 @media(min-width:761px){.drive-actions{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:420px){.inventory-product-total{font-size:18px}.inventory-actions button{padding:8px 10px}.inventory-location,.inventory-batch-detail{font-size:12px}}
+.inventory-product-title,.inventory-variant-title{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.opened-badge{display:inline-flex;align-items:center;white-space:nowrap;flex:0 0 auto;padding:4px 9px;border-radius:999px;background:#fff0cf;color:#895500;font-size:12px;font-weight:650;line-height:1.35}
 </style>
 
 <link rel="manifest" href="./manifest.webmanifest">
@@ -585,7 +587,7 @@ function renderInventory(){
        ? (sealed?"未开封 "+fmt(sealed)+" 袋":"")+(sealed&&openedQty>0?" · ":"")+(openedQty>0?"开封剩余 "+fmt(openedQty)+" g":"")
        : "现存 "+fmt(sealed+openedQty)+" "+(v.unit||"件")+(openedQty>0?" · 开封剩余 "+fmt(openedQty)+" "+(v.unit||"件"):"");
      return '<div class="group-sub inventory-variant">'+
-       '<div class="inventory-variant-head"><div><b>'+esc(v.name)+'</b><div class="muted inventory-location">'+esc(loc(x.zoneId))+' · '+esc(zoneSummary)+'</div></div></div>'+
+       '<div class="inventory-variant-head"><div class="inventory-variant-title"><b>'+esc(v.name)+'</b>'+(x.rows.some(opened)?'<span class="opened-badge">⭐ 开封</span>':'')+'<div class="muted inventory-location">'+esc(loc(x.zoneId))+' · '+esc(zoneSummary)+'</div></div></div>'+
        x.rows.slice().sort(function(a,b){return opened(b)-opened(a)||String(batch(b.batchId)?.received||"").localeCompare(String(batch(a.batchId)?.received||""));}).map(function(s){
          var b=batch(s.batchId);
          return '<div class="inventory-batch">'+
@@ -607,7 +609,7 @@ function renderInventory(){
      opens.push("开封剩余 "+fmt(productOpenedCount)+" "+(ov?.unit||"件"));
    }
    return '<div class="group-card inventory-product">'+
-     '<div class="inventory-product-head"><div><b>'+esc(g.p.name)+'</b>'+
+     '<div class="inventory-product-head"><div><div class="inventory-product-title"><b>'+esc(g.p.name)+'</b>'+(g.rows.some(opened)?'<span class="opened-badge">⭐ 有开封</span>':'')+'</div>'+
      '<div class="inventory-product-total">'+esc(summary.join(" · ")||"0")+'</div>'+
      (opens.length?'<div class="muted inventory-open-summary">'+esc(opens.join(" · "))+'</div>':"")+
      '</div></div>'+sub+'</div>';
